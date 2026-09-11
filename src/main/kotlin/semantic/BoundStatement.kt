@@ -21,10 +21,16 @@ data class BoundVariableDeclarationStatement(
 ) : BoundStatement
 
 data class BoundAssignmentStatement(
-    val symbol: ValueSymbol,
+    val target: BoundExpression,
     val expression: BoundExpression,
     override val span: SourceSpan
-) : BoundStatement
+) : BoundStatement {
+    constructor(symbol: ValueSymbol, expression: BoundExpression, span: SourceSpan) :
+        this(BoundNameExpression(symbol, span), expression, span)
+
+    val symbol: ValueSymbol?
+        get() = (target as? BoundNameExpression)?.symbol
+}
 
 data class BoundExpressionStatement(
     val expression: BoundExpression,

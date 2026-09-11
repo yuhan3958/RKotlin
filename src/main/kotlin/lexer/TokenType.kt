@@ -1,6 +1,10 @@
 package me.rkt.lexer
 
 enum class TokenType {
+    IMPORT,
+    CLASS,
+    OBJECT,
+    NEW,
     FUN,
     RETURN,
     IF,
@@ -15,6 +19,8 @@ enum class TokenType {
 
     COLON,
     COMMA,
+    SEMICOLON,
+    DOT,
 
     LPAREN,
     RPAREN,

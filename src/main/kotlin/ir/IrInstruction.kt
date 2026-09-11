@@ -29,6 +29,23 @@ data class IrCallInstruction(
     val returnType: IrType
 ) : IrInstruction
 
+data class IrNewObjectInstruction(
+    val result: IrRegister,
+    val type: IrObjectType
+) : IrInstruction
+
+data class IrFieldLoadInstruction(
+    val result: IrRegister,
+    val receiver: IrValue,
+    val field: String
+) : IrInstruction
+
+data class IrFieldStoreInstruction(
+    val receiver: IrValue,
+    val field: String,
+    val value: IrValue
+) : IrInstruction
+
 data class IrLoadInstruction(
     val result: IrRegister,
     val local: IrLocal

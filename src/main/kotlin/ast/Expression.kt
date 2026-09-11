@@ -19,6 +19,18 @@ data class NameExpression(
     override val span: SourceSpan
 ) : Expression
 
+data class NewExpression(
+    val type: TypeReference,
+    val arguments: List<Expression>,
+    override val span: SourceSpan
+) : Expression
+
+data class MemberAccessExpression(
+    val receiver: Expression,
+    val name: String,
+    override val span: SourceSpan
+) : Expression
+
 data class CallExpression(
     val target: Expression,
     val arguments: List<Expression>,

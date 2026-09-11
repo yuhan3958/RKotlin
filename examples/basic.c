@@ -1,49 +1,56 @@
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
-int32_t rk_add(int32_t a, int32_t b);
-int32_t rk_mul(int32_t a, int32_t b);
-int32_t rk_f(int32_t a, int32_t b, int32_t c);
+struct rk_Point {
+    int32_t x;
+    int32_t y;
+};
+
+int32_t rk_Point_sum(struct rk_Point* this);
 int32_t rk_main(void);
 
-int32_t rk_add(int32_t a, int32_t b) {
-    int32_t r0 = a + b;
-    return r0;
-}
-
-int32_t rk_mul(int32_t a, int32_t b) {
-    int32_t r0 = a * 2;
-    int32_t r1 = b + 3;
-    int32_t r2 = rk_add(r0, r1);
-    return r2;
-}
-
-int32_t rk_f(int32_t a, int32_t b, int32_t c) {
-    int32_t r0 = rk_mul(a, b);
-    int32_t r1 = rk_add(b, c);
-    int32_t r2 = rk_add(r0, r1);
+int32_t rk_Point_sum(struct rk_Point* this) {
+    int32_t r0;
+    int32_t r1;
+    int32_t r2;
+    r0 = this->x;
+    r1 = this->y;
+    r2 = r0 + r1;
     return r2;
 }
 
 int32_t rk_main(void) {
-    int32_t l0;
-    int32_t l1;
-    l0 = 10;
-    int32_t r0 = l0;
-    int32_t r1 = r0 + 32;
-    l0 = r1;
-    int32_t r2 = l0;
-    int32_t r3 = l0;
-    int32_t r4 = r3 + 1;
-    int32_t r5 = l0;
-    int32_t r6 = r5 + 2;
-    int32_t r7 = rk_f(r2, r4, r6);
-    l1 = r7;
-    int32_t r8 = l1;
-    printf("%d\n", r8);
-    return 0;
+    struct rk_Point* l0;
+    struct rk_Point* r0;
+    struct rk_Point* r1;
+    struct rk_Point* r2;
+    struct rk_Point* r3;
+    int32_t r4;
+    struct rk_Point* r5;
+    int32_t r6;
+    r0 = calloc(1, sizeof(struct rk_Point));
+    l0 = r0;
+    r1 = l0;
+    r1->x = 20;
+    r2 = l0;
+    r2->y = 22;
+    printf("%s\n", "point sum:");
+    r3 = l0;
+    r4 = rk_Point_sum(r3);
+    printf("%d\n", r4);
+    r5 = l0;
+    r6 = rk_Point_sum(r5);
+    return r6;
 }
 
 int main(void) {
+    #ifdef _WIN32
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+    #endif
     return rk_main();
 }

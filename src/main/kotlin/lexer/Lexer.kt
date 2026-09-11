@@ -39,6 +39,7 @@ class Lexer(
 
             c == ':' -> simple(TokenType.COLON, start)
             c == ',' -> simple(TokenType.COMMA, start)
+            c == ';' -> simple(TokenType.SEMICOLON, start)
             c == '(' -> simple(TokenType.LPAREN, start)
             c == ')' -> simple(TokenType.RPAREN, start)
             c == '{' -> simple(TokenType.LBRACE, start)
@@ -70,6 +71,7 @@ class Lexer(
                 position++
                 simple(TokenType.DOT_DOT, start)
             }
+            c == '.' -> simple(TokenType.DOT, start)
 
             else -> diagnostics.fail(
                 SourceSpan(source, start, position),
@@ -87,6 +89,10 @@ class Lexer(
 
         val text = source.content.substring(start, position)
         val type = when (text) {
+            "import" -> TokenType.IMPORT
+            "class" -> TokenType.CLASS
+            "object" -> TokenType.OBJECT
+            "new" -> TokenType.NEW
             "fun" -> TokenType.FUN
             "return" -> TokenType.RETURN
             "if" -> TokenType.IF

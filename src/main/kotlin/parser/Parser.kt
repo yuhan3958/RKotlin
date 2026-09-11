@@ -13,10 +13,19 @@ class Parser(
     private var position = 0
 
     fun parseModule(): AstModule {
+        val imports = mutableListOf<ImportDeclaration>()
         val declarations = mutableListOf<Declaration>()
 
         while (!check(TokenType.EOF)) {
-            declarations += parseFunctionDeclaration()
+            if (match(TokenType.IMPORT)) {
+                imports += parseImport(previous())
+            } else {
+                declarations += when {
+                    check(TokenType.CLASS) -> parseClassDeclaration()
+                    check(TokenType.OBJECT) -> parseObjectDeclaration()
+                    else -> parseFunctionDeclaration()
+                }
+            }
         }
 
         val span = if (declarations.isEmpty()) {
@@ -25,10 +34,71 @@ class Parser(
             declarations.first().span.merge(declarations.last().span)
         }
 
-        return AstModule(declarations, span)
+        return AstModule(declarations, span, imports)
     }
 
-    private fun parseFunctionDeclaration(): FunctionDeclaration {
+    private fun parseImport(start: Token): ImportDeclaration {
+        val path = mutableListOf<String>()
+        val first = expect(TokenType.IDENTIFIER)
+        path += first.text
+        var end = first.span
+        while (match(TokenType.DOT)) {
+            val part = expect(TokenType.IDENTIFIER)
+            path += part.text
+            end = part.span
+        }
+        match(TokenType.SEMICOLON)
+        return ImportDeclaration(path, start.span.merge(end))
+    }
+
+    private fun parseClassDeclaration(): ClassDeclaration =
+        parseTypeDeclaration(isObject = false) as ClassDeclaration
+
+    private fun parseObjectDeclaration(): ObjectDeclaration =
+        parseTypeDeclaration(isObject = true) as ObjectDeclaration
+
+    private fun parseTypeDeclaration(isObject: Boolean): Declaration {
+        val start = advance()
+        val name = expect(TokenType.IDENTIFIER)
+        expect(TokenType.LBRACE)
+        val members = mutableListOf<ClassMember>()
+        while (!check(TokenType.RBRACE) && !check(TokenType.EOF)) {
+            members += when {
+                check(TokenType.VAR) || check(TokenType.VAL) ->
+                    parseFieldDeclaration(advance())
+                check(TokenType.FUN) ->
+                    parseFunctionDeclaration(name.text)
+                else -> {
+                    diagnostics.fail(
+                        current().span,
+                        "expected field or function declaration in ${if (isObject) "object" else "class"}"
+                    )
+                }
+            }
+        }
+        val end = expect(TokenType.RBRACE)
+        val span = start.span.merge(end.span)
+        return if (isObject) {
+            ObjectDeclaration(name.text, members, span)
+        } else {
+            ClassDeclaration(name.text, members, span)
+        }
+    }
+
+    private fun parseFieldDeclaration(keyword: Token): FieldDeclaration {
+        val name = expect(TokenType.IDENTIFIER)
+        expect(TokenType.COLON)
+        val type = parseTypeReference()
+        expect(TokenType.SEMICOLON)
+        return FieldDeclaration(
+            keyword.type == TokenType.VAR,
+            name.text,
+            type,
+            keyword.span.merge(type.span)
+        )
+    }
+
+    private fun parseFunctionDeclaration(owner: String? = null): FunctionDeclaration {
         val start = expect(TokenType.FUN)
         val name = expect(TokenType.IDENTIFIER)
 
@@ -59,7 +129,8 @@ class Parser(
             parameters,
             returnType,
             body,
-            start.span.merge(body.span)
+            start.span.merge(body.span),
+            owner
         )
     }
 
@@ -88,6 +159,7 @@ class Parser(
         if (match(TokenType.RETURN)) {
             val start = previous()
             val expression = parseExpression()
+            match(TokenType.SEMICOLON)
             return ReturnStatement(expression, start.span.merge(expression.span))
         }
 
@@ -95,14 +167,17 @@ class Parser(
             return parseVariableDeclaration(advance())
         }
 
-        if (
-            check(TokenType.IDENTIFIER) &&
-            peek(1).type == TokenType.EQUAL
-        ) {
-            return parseAssignment()
-        }
-
         val expression = parseExpression()
+        if (match(TokenType.EQUAL)) {
+            val value = parseExpression()
+            match(TokenType.SEMICOLON)
+            return AssignmentStatement(
+                expression,
+                value,
+                expression.span.merge(value.span)
+            )
+        }
+        match(TokenType.SEMICOLON)
         return ExpressionStatement(expression, expression.span)
     }
 
@@ -154,6 +229,7 @@ class Parser(
         expect(TokenType.EQUAL)
 
         val initializer = parseExpression()
+        match(TokenType.SEMICOLON)
 
         return VariableDeclarationStatement(
             mutable = mutable,
@@ -161,17 +237,6 @@ class Parser(
             type = type,
             initializer = initializer,
             span = keyword.span.merge(initializer.span)
-        )
-    }
-
-    private fun parseAssignment(): AssignmentStatement {
-        val name = expect(TokenType.IDENTIFIER)
-        expect(TokenType.EQUAL)
-        val expression = parseExpression()
-        return AssignmentStatement(
-            name.text,
-            expression,
-            name.span.merge(expression.span)
         )
     }
 
@@ -246,21 +311,32 @@ class Parser(
     private fun parseCall(): Expression {
         var expression = parsePrimary()
 
-        while (match(TokenType.LPAREN)) {
-            val arguments = mutableListOf<Expression>()
+        while (true) {
+            if (match(TokenType.LPAREN)) {
+                val arguments = mutableListOf<Expression>()
 
-            if (!check(TokenType.RPAREN)) {
-                do {
-                    arguments += parseExpression()
-                } while (match(TokenType.COMMA))
+                if (!check(TokenType.RPAREN)) {
+                    do {
+                        arguments += parseExpression()
+                    } while (match(TokenType.COMMA))
+                }
+
+                val end = expect(TokenType.RPAREN)
+                expression = CallExpression(
+                    expression,
+                    arguments,
+                    expression.span.merge(end.span)
+                )
+            } else if (match(TokenType.DOT)) {
+                val name = expect(TokenType.IDENTIFIER)
+                expression = MemberAccessExpression(
+                    expression,
+                    name.text,
+                    expression.span.merge(name.span)
+                )
+            } else {
+                break
             }
-
-            val end = expect(TokenType.RPAREN)
-            expression = CallExpression(
-                expression,
-                arguments,
-                expression.span.merge(end.span)
-            )
         }
 
         return expression
@@ -275,6 +351,21 @@ class Parser(
         if (match(TokenType.STRING)) {
             val token = previous()
             return StringLiteral(token.text, token.span)
+        }
+
+        if (match(TokenType.NEW)) {
+            val start = previous()
+            val typeToken = expect(TokenType.IDENTIFIER)
+            val type = TypeReference(typeToken.text, typeToken.span)
+            expect(TokenType.LPAREN)
+            val arguments = mutableListOf<Expression>()
+            if (!check(TokenType.RPAREN)) {
+                do {
+                    arguments += parseExpression()
+                } while (match(TokenType.COMMA))
+            }
+            val end = expect(TokenType.RPAREN)
+            return NewExpression(type, arguments, start.span.merge(end.span))
         }
 
         if (match(TokenType.IDENTIFIER)) {

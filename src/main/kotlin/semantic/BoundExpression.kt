@@ -24,6 +24,32 @@ data class BoundNameExpression(
     override val type: RType = symbol.type
 ) : BoundExpression
 
+data class BoundThisExpression(
+    val symbol: ParameterSymbol,
+    override val span: SourceSpan,
+    override val type: RType = symbol.type
+) : BoundExpression
+
+data class BoundNewExpression(
+    val classType: ClassType,
+    val arguments: List<BoundExpression>,
+    override val span: SourceSpan,
+    override val type: RType = classType
+) : BoundExpression
+
+data class BoundObjectReference(
+    val classType: ClassType,
+    override val span: SourceSpan,
+    override val type: RType = classType
+) : BoundExpression
+
+data class BoundMemberExpression(
+    val receiver: BoundExpression,
+    val field: FieldSymbol,
+    override val span: SourceSpan,
+    override val type: RType = field.type
+) : BoundExpression
+
 enum class BoundBinaryOperator {
     ADD_I32,
     SUB_I32,
@@ -49,5 +75,6 @@ data class BoundCallExpression(
     val function: FunctionSymbol,
     val arguments: List<BoundExpression>,
     override val span: SourceSpan,
-    override val type: RType = function.returnType
+    override val type: RType = function.returnType,
+    val receiver: BoundExpression? = null
 ) : BoundExpression

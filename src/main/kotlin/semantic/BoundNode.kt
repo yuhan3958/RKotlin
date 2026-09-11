@@ -1,5 +1,7 @@
 package me.rkt.semantic
 
+import me.rkt.ast.ImportDeclaration
+
 import me.rkt.source.SourceSpan
 
 sealed interface BoundNode {
@@ -7,11 +9,14 @@ sealed interface BoundNode {
 }
 
 data class SemanticModule(
-    val functions: List<BoundFunction>
+    val functions: List<BoundFunction>,
+    val classes: List<ClassSymbol> = emptyList(),
+    val imports: List<ImportDeclaration> = emptyList()
 )
 
 data class BoundFunction(
     val symbol: FunctionSymbol,
     val body: BoundBlockStatement,
-    val parameters: List<ParameterSymbol>
+    val parameters: List<ParameterSymbol>,
+    val receiver: ClassType? = null
 )

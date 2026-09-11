@@ -23,10 +23,16 @@ data class VariableDeclarationStatement(
 ) : Statement
 
 data class AssignmentStatement(
-    val name: String,
+    val target: Expression,
     val expression: Expression,
     override val span: SourceSpan
-) : Statement
+) : Statement {
+    constructor(name: String, expression: Expression, span: SourceSpan) :
+        this(NameExpression(name, span), expression, span)
+
+    val name: String
+        get() = (target as? NameExpression)?.name ?: ""
+}
 
 data class ExpressionStatement(
     val expression: Expression,

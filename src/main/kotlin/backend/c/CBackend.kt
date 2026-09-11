@@ -9,10 +9,32 @@ class CBackend : Backend<String> {
 
         w.line("#include <stdint.h>")
         w.line("#include <stdio.h>")
+        w.line("#include <stdlib.h>")
         w.line("#ifdef _WIN32")
         w.line("#include <windows.h>")
         w.line("#endif")
         w.line()
+
+        for (clazz in module.classes) {
+            w.line("struct rk_${sanitize(clazz.name)} {")
+            w.indented {
+                if (clazz.fields.isEmpty()) {
+                    w.line("uint8_t _unused;")
+                } else {
+                    clazz.fields.forEach { field ->
+                        w.line("${cType(field.type)} ${sanitize(field.name)};")
+                    }
+                }
+            }
+            w.line("};")
+            if (clazz.objectLike) {
+                w.line(
+                    "static struct rk_${sanitize(clazz.name)} " +
+                        "rk_object_${sanitize(clazz.name)};"
+                )
+            }
+            w.line()
+        }
 
         for (function in module.functions) {
             w.line(prototype(function) + ";")
@@ -121,6 +143,27 @@ class CBackend : Backend<String> {
                 }
             }
 
+            is IrNewObjectInstruction -> {
+                w.line(
+                    "${value(instruction.result)} = " +
+                        "calloc(1, sizeof(struct rk_${sanitize(instruction.type.name)}));"
+                )
+            }
+
+            is IrFieldLoadInstruction -> {
+                w.line(
+                    "${value(instruction.result)} = " +
+                        "${value(instruction.receiver)}->${sanitize(instruction.field)};"
+                )
+            }
+
+            is IrFieldStoreInstruction -> {
+                w.line(
+                    "${value(instruction.receiver)}->${sanitize(instruction.field)} = " +
+                        "${value(instruction.value)};"
+                )
+            }
+
             is IrLoadInstruction -> {
                 w.line(
                     "${value(instruction.result)} = " +
@@ -148,6 +191,7 @@ class CBackend : Backend<String> {
         is IrParameter -> sanitize(value.name)
         is IrRegister -> "r${value.id}"
         is IrLocal -> localName(value)
+        is IrObjectReference -> "&rk_object_${sanitize(value.name)}"
         IrUnitValue -> error("Unit is not a C value")
     }
 
@@ -158,6 +202,8 @@ class CBackend : Backend<String> {
                     is IrBinaryInstruction -> listOf(instruction.result)
                     is IrCallInstruction -> instruction.result?.let(::listOf) ?: emptyList()
                     is IrLoadInstruction -> listOf(instruction.result)
+                    is IrNewObjectInstruction -> listOf(instruction.result)
+                    is IrFieldLoadInstruction -> listOf(instruction.result)
                     else -> emptyList()
                 }
             }
@@ -182,6 +228,7 @@ class CBackend : Backend<String> {
         IrI32 -> "int32_t"
         IrVoid -> "void"
         IrString -> "const char*"
+        is IrObjectType -> "struct rk_${sanitize(type.name)}*"
     }
 
     private fun sanitize(name: String): String =

@@ -8,5 +8,6 @@ sealed interface AstNode {
 
 data class AstModule(
     val declarations: List<Declaration>,
-    override val span: SourceSpan
+    override val span: SourceSpan,
+    val imports: List<ImportDeclaration> = emptyList()
 ) : AstNode

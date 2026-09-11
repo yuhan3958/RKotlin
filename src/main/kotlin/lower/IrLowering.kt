@@ -5,23 +5,39 @@ import me.rkt.semantic.*
 
 class IrLowering {
     fun lower(module: SemanticModule): IrModule =
-        IrModule(module.functions.map(::lowerFunction))
+        IrModule(
+            module.functions.map(::lowerFunction),
+            module.classes.map { classSymbol ->
+                IrClass(
+                    classSymbol.name,
+                    classSymbol.fields.values.map {
+                        IrField(it.name, lowerType(it.type))
+                    },
+                    classSymbol.type.objectLike
+                )
+            }
+        )
 
     private fun lowerFunction(function: BoundFunction): IrFunction {
         val context = FunctionContext()
 
-        val parameters = function.parameters.mapIndexed { index, symbol ->
-            IrParameter(index, symbol.name, lowerType(symbol.type)).also {
-                context.parameters[symbol] = it
+        val receiver = function.receiver?.let {
+            IrParameter(0, "this", lowerType(it)).also { parameter ->
+                context.receiver = parameter
             }
         }
+        val parameters = function.parameters.mapIndexed { index, symbol ->
+            IrParameter(index + if (receiver == null) 0 else 1, symbol.name, lowerType(symbol.type)).also {
+                context.parameters[symbol] = it
+            }
+        }.let { if (receiver == null) it else listOf(receiver) + it }
 
         for (statement in function.body.statements) {
             lowerStatement(statement, context)
         }
 
         return IrFunction(
-            function.symbol.name,
+            function.symbol.generatedName,
             parameters,
             context.locals.values.toList(),
             lowerType(function.symbol.returnType),
@@ -48,12 +64,22 @@ class IrLowering {
             }
 
             is BoundAssignmentStatement -> {
-                val local = context.locals[statement.symbol as VariableSymbol]
-                    ?: error("unmapped local symbol: ${statement.symbol.name}")
-                context.instructions += IrStoreInstruction(
-                    local,
-                    lowerExpression(statement.expression, context)
-                )
+                val value = lowerExpression(statement.expression, context)
+                when (val target = statement.target) {
+                    is BoundNameExpression -> {
+                        val local = context.locals[target.symbol as VariableSymbol]
+                            ?: error("unmapped local symbol: ${target.symbol.name}")
+                        context.instructions += IrStoreInstruction(local, value)
+                    }
+                    is BoundMemberExpression -> {
+                        context.instructions += IrFieldStoreInstruction(
+                            lowerExpression(target.receiver, context),
+                            target.field.name,
+                            value
+                        )
+                    }
+                    else -> error("unsupported assignment target")
+                }
             }
 
             is BoundExpressionStatement -> {
@@ -134,10 +160,41 @@ class IrLowering {
     ): IrValue = when (expression) {
         is BoundIntLiteral -> IrIntConstant(expression.value)
         is BoundStringLiteral -> IrStringConstant(expression.value)
+        is BoundThisExpression -> context.receiver
+            ?: error("unmapped method receiver")
+
+        is BoundNewExpression -> {
+            val result = context.newRegister(lowerType(expression.type))
+            context.instructions += IrNewObjectInstruction(
+                result,
+                lowerType(expression.type) as IrObjectType
+            )
+            result
+        }
+
+        is BoundObjectReference -> IrObjectReference(
+            expression.classType.name,
+            IrObjectType(expression.classType.name)
+        )
+
+        is BoundMemberExpression -> {
+            val receiver = lowerExpression(expression.receiver, context)
+            val result = context.newRegister(lowerType(expression.type))
+            context.instructions += IrFieldLoadInstruction(
+                result,
+                receiver,
+                expression.field.name
+            )
+            result
+        }
 
         is BoundNameExpression -> when (val symbol = expression.symbol) {
-            is ParameterSymbol -> context.parameters[symbol]
-                ?: error("unmapped parameter symbol: ${symbol.name}")
+            is ParameterSymbol -> if (symbol.name == "this") {
+                context.receiver ?: error("unmapped method receiver")
+            } else {
+                context.parameters[symbol]
+                    ?: error("unmapped parameter symbol: ${symbol.name}")
+            }
             is VariableSymbol -> {
                 val local = context.locals[symbol]
                     ?: error("unmapped local symbol: ${symbol.name}")
@@ -145,6 +202,7 @@ class IrLowering {
                 context.instructions += IrLoadInstruction(result, local)
                 result
             }
+            is FieldSymbol -> error("field reference must be qualified")
         }
 
         is BoundBinaryExpression -> {
@@ -174,13 +232,16 @@ class IrLowering {
         }
 
         is BoundCallExpression -> {
-            val args = expression.arguments.map { lowerExpression(it, context) }
+            val args = buildList {
+                expression.receiver?.let { add(lowerExpression(it, context)) }
+                addAll(expression.arguments.map { lowerExpression(it, context) })
+            }
             val returnType = lowerType(expression.type)
             val result = if (returnType == IrVoid) null else context.newRegister(returnType)
 
             context.instructions += IrCallInstruction(
                 result,
-                expression.function.builtinTarget ?: expression.function.name,
+                expression.function.builtinTarget ?: expression.function.generatedName,
                 args,
                 returnType
             )
@@ -193,11 +254,13 @@ class IrLowering {
         Int32Type -> IrI32
         UnitType -> IrVoid
         StringType -> IrString
+        is ClassType -> IrObjectType(type.name)
     }
 
     private class FunctionContext {
         val instructions = mutableListOf<IrInstruction>()
         val parameters = mutableMapOf<ValueSymbol, IrParameter>()
+        var receiver: IrParameter? = null
         val locals = linkedMapOf<VariableSymbol, IrLocal>()
         private var nextRegisterId = 0
         private var nextLocalId = 0

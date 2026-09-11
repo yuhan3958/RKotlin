@@ -31,6 +31,11 @@ data class IrLocal(
     override val type: IrType
 ) : IrValue
 
+data class IrObjectReference(
+    val name: String,
+    override val type: IrObjectType
+) : IrValue
+
 data object IrUnitValue : IrValue {
     override val type: IrType = IrVoid
 }

@@ -15,3 +15,10 @@ data object UnitType : RType {
 data object StringType : RType {
     override val displayName: String = "String"
 }
+
+data class ClassType(
+    val name: String,
+    val objectLike: Boolean = false
+) : RType {
+    override val displayName: String = name
+}
