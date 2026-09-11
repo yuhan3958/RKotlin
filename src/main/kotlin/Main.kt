@@ -33,7 +33,8 @@ fun main(args: Array<String>) {
     }
     if (compile) {
         val executable = output.resolveSibling(
-            "${output.fileName.toString().substringBeforeLast('.')}.exe"
+            "${output.fileName.toString().substringBeforeLast('.')}" +
+                if (System.getProperty("os.name").startsWith("Windows")) ".exe" else ""
         )
         exitProcess(Ccompiler().compile(output.toFile(), executable.toFile()))
     }

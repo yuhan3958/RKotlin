@@ -3,46 +3,64 @@ package me.rkt
 import java.io.File
 
 class Ccompiler() {
-    fun ensureToolchain(): File {
-        val gcc = File("toolchain/mingw64/bin/gcc.exe")
+    fun ensureToolchain(): String {
+        if (System.getProperty("os.name").startsWith("Windows")) {
+            val gcc = File("toolchain/mingw64/bin/gcc.exe")
 
-        if (gcc.exists()) {
-            return gcc
+            if (!gcc.exists()) {
+                println("MinGW-w64 not found. Installing...")
+                runInstaller("powershell.exe", "-ExecutionPolicy", "Bypass",
+                    "-File", "toolchain/scripts/download-toolchain.ps1")
+            }
+
+            check(gcc.exists()) { "gcc.exe was not found after installation" }
+            return gcc.path
         }
 
-        println("MinGW-w64 not found. Installing...")
+        findCommand("clang")?.let { return it }
+        findCommand("gcc")?.let { return it }
+        findCommand("cc")?.let { return it }
 
-        val exitCode = ProcessBuilder(
-            "powershell.exe",
-            "-ExecutionPolicy", "Bypass",
-            "-File", "toolchain/scripts/download-toolchain.ps1"
-        )
+        println("A C compiler was not found. Installing one...")
+        runInstaller("sh", "toolchain/scripts/install-toolchain.sh")
+
+        return findCommand("clang")
+            ?: findCommand("gcc")
+            ?: findCommand("cc")
+            ?: error("No C compiler was found after installation")
+    }
+
+    private fun findCommand(command: String): String? {
+        val probe = ProcessBuilder("sh", "-c", "command -v $command")
+            .redirectErrorStream(true)
+            .start()
+        if (probe.waitFor() != 0) return null
+        return probe.inputStream.bufferedReader().readLine()?.trim()?.takeIf { it.isNotEmpty() }
+    }
+
+    private fun runInstaller(vararg command: String) {
+        val exitCode = ProcessBuilder(*command)
             .inheritIO()
             .start()
             .waitFor()
-
         check(exitCode == 0) {
-            "Toolchain installation failed (exit code: $exitCode)"
+            "C toolchain installation failed (exit code: $exitCode)"
         }
-
-        check(gcc.exists()) {
-            "gcc.exe was not found after installation"
-        }
-
-        return gcc
     }
 
     fun compile(source: File, executable: File): Int {
-        val gcc = ensureToolchain()
+        val compiler = ensureToolchain()
 
-        val process = ProcessBuilder(
-            gcc.path,
-            "-finput-charset=UTF-8",
-            "-fexec-charset=UTF-8",
-            source.path,
-            "-o",
-            executable.path
-        )
+        val command = mutableListOf(compiler)
+        if (System.getProperty("os.name").startsWith("Windows")) {
+            command += "-finput-charset=UTF-8"
+            command += "-fexec-charset=UTF-8"
+        }
+        command += source.path
+        command += "-o"
+        command += executable.path
+
+        val process = ProcessBuilder(command)
             .inheritIO()
             .start()
 
@@ -62,8 +80,9 @@ class Ccompiler() {
     }
 
     fun compileAndRun(source: java.nio.file.Path): Int {
+        val extension = if (System.getProperty("os.name").startsWith("Windows")) ".exe" else ""
         val executable = source
-            .resolveSibling("${source.fileName.toString().substringBeforeLast('.')}.exe")
+            .resolveSibling("${source.fileName.toString().substringBeforeLast('.')}$extension")
             .toFile()
 
         compile(source.toFile(), executable)

@@ -563,6 +563,18 @@ Not:
 
 ---
 
+## Native C Compiler
+
+When the `-p` or `-r` option is used, RKotlin automatically selects a C compiler appropriate for the operating system.
+
+* **Windows:** Uses the MinGW-w64 toolchain bundled with the project. If it is not available, RKotlin installs it automatically.
+* **macOS:** Prefers `clang`. If it is not available, LLVM is installed through Homebrew.
+* **Linux:** Searches for `clang`, `gcc`, and `cc`, in that order. If none are available, RKotlin installs the required development tools using one of the supported package managers: `apt`, `dnf`, or `pacman`.
+
+On Linux and macOS, the installation process may require `sudo` privileges or permission to use Homebrew.
+
+---
+
 # Intermediate Representation
 
 RKotlin lowers complex expressions into explicit temporary values.
