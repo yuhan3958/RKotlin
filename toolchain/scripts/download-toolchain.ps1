@@ -4,10 +4,6 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-# Repository root:
-# RKotlin/
-# ├─ scripts/download-toolchain.ps1
-# └─ toolchains/
 $RepoRoot = Split-Path $PSScriptRoot -Parent
 
 $ToolchainDir  = Join-Path $RepoRoot "mingw64"
