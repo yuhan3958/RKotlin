@@ -1,0 +1,5 @@
+fun main(): Int32 {
+    val x: Int32 = 40
+    println(x + 2)
+    return x + 2
+}

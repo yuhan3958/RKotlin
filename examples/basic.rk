@@ -1,0 +1,22 @@
+fun add(a: Int32, b: Int32): Int32 {
+    return a + b
+}
+
+fun mul(a: Int32, b: Int32): Int32 {
+    return add(a * 2, b + 3)
+}
+
+fun f(a: Int32, b: Int32, c: Int32): Int32 {
+    return add(
+        mul(a, b),
+        add(b, c)
+    )
+}
+
+fun main(): Int32 {
+    var x: Int32 = 10
+    x = x + 32
+    val y: Int32 = f(x, x+1, x+2)
+    println(y)
+    return 0
+}

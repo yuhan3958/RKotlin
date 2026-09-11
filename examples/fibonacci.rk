@@ -1,0 +1,28 @@
+fun fibonacci(n: Int32): Int32 {
+
+    if (n <= 1) {
+        return n
+    }
+
+    var a: Int32 = 0
+    var b: Int32 = 1
+    var i: Int32 = 2
+
+    while (i <= n) {
+        val next: Int32 = a + b
+
+        a = b
+        b = next
+        i = i + 1
+    }
+
+    return b
+}
+
+fun main(): Int32 {
+    println("피보나치 수열의 몇번째 항을 구하시겠습니까?")
+    val x: Int32 = input()
+    val y: Int32 = fibonacci(x)
+    println(y)
+    return 0
+}
