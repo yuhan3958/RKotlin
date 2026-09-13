@@ -201,6 +201,9 @@ class Parser(
     }
 
     private fun parseTypeReference(): TypeReference {
+        if (match(TokenType.STAR)) {
+            return TypeReference("*", previous().span)
+        }
         val token = expect(TokenType.IDENTIFIER)
         val arguments = mutableListOf<TypeReference>()
         if (match(TokenType.LESS)) {
@@ -318,10 +321,37 @@ class Parser(
     private fun parseExpression(): Expression = parseElvis()
 
     private fun parseElvis(): Expression {
-        val expression = parseComparison()
+        val expression = parseLogicalOr()
         if (!match(TokenType.ELVIS)) return expression
         val fallback = parseElvis()
         return ElvisExpression(expression, fallback, expression.span.merge(fallback.span))
+    }
+
+    private fun parseLogicalOr(): Expression {
+        var expression = parseLogicalAnd()
+        while (match(TokenType.OR_OR)) {
+            val right = parseLogicalAnd()
+            expression = BinaryExpression(expression, BinaryOperator.OR, right, expression.span.merge(right.span))
+        }
+        return expression
+    }
+
+    private fun parseLogicalAnd(): Expression {
+        var expression = parseLogicalXor()
+        while (match(TokenType.AND_AND)) {
+            val right = parseLogicalXor()
+            expression = BinaryExpression(expression, BinaryOperator.AND, right, expression.span.merge(right.span))
+        }
+        return expression
+    }
+
+    private fun parseLogicalXor(): Expression {
+        var expression = parseComparison()
+        while (match(TokenType.CARET)) {
+            val right = parseComparison()
+            expression = BinaryExpression(expression, BinaryOperator.XOR, right, expression.span.merge(right.span))
+        }
+        return expression
     }
 
     private fun parseComparison(): Expression {
@@ -394,7 +424,18 @@ class Parser(
         var expression = parsePrimary()
 
         while (true) {
-            if (match(TokenType.LPAREN)) {
+            if (expression is NameExpression && expression.name == "alloc" && match(TokenType.LESS)) {
+                val elementType = parseTypeReference()
+                expect(TokenType.GREATER)
+                expect(TokenType.LPAREN)
+                val length = parseExpression()
+                val end = expect(TokenType.RPAREN)
+                expression = AllocationExpression(
+                    elementType,
+                    length,
+                    expression.span.merge(end.span)
+                )
+            } else if (match(TokenType.LPAREN)) {
                 val arguments = mutableListOf<Expression>()
 
                 if (!check(TokenType.RPAREN)) {
@@ -407,6 +448,14 @@ class Parser(
                 expression = CallExpression(
                     expression,
                     arguments,
+                    expression.span.merge(end.span)
+                )
+            } else if (match(TokenType.LBRACKET)) {
+                val index = parseExpression()
+                val end = expect(TokenType.RBRACKET)
+                expression = IndexExpression(
+                    expression,
+                    index,
                     expression.span.merge(end.span)
                 )
             } else if (check(TokenType.DOT) || check(TokenType.SAFE_DOT)) {
@@ -427,6 +476,11 @@ class Parser(
     }
 
     private fun parseUnary(): Expression {
+        if (match(TokenType.BANG)) {
+            val start = previous()
+            val operand = parseUnary()
+            return UnaryExpression(UnaryOperator.NOT, operand, start.span.merge(operand.span))
+        }
         if (match(TokenType.MINUS)) {
             val start = previous()
             if (check(TokenType.INTEGER) && peek(1).type !in setOf(TokenType.DOT, TokenType.SAFE_DOT, TokenType.LPAREN)) {

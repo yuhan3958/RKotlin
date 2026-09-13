@@ -4,6 +4,9 @@ package me.rkt.backend.c
 internal object CIntrinsics {
     val functions = mapOf(
         "pointer.isFreed" to "rk_pointer_is_freed",
+        "pointer.toString" to "rk_pointer_to_string",
+        "pointer.addressString" to "rk_pointer_address_string",
+        "type.free" to "rk_type_free",
         "int.add" to "rk_int_add", "int.subtract" to "rk_int_subtract",
         "int.multiply" to "rk_int_multiply", "int.divide" to "rk_int_divide",
         "int.remainder" to "rk_int_remainder", "int.less" to "rk_int_less",

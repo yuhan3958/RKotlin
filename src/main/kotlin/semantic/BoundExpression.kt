@@ -91,10 +91,51 @@ data class BoundPointerWriteExpression(
     override val type: RType = UnitType
 ) : BoundExpression
 
+data class BoundPointerAddExpression(
+    val pointer: BoundExpression,
+    val offset: BoundExpression,
+    override val type: ManagedPointerType,
+    override val span: SourceSpan,
+    val direction: Int = 1
+) : BoundExpression
+
+data class BoundBufferGetExpression(
+    val pointer: BoundExpression,
+    val index: BoundExpression,
+    override val type: RType,
+    override val span: SourceSpan
+) : BoundExpression
+
+data class BoundBufferSetExpression(
+    val pointer: BoundExpression,
+    val index: BoundExpression,
+    val value: BoundExpression,
+    override val span: SourceSpan,
+    override val type: RType = UnitType
+) : BoundExpression
+
+data class BoundBufferLengthExpression(
+    val pointer: BoundExpression,
+    override val span: SourceSpan,
+    override val type: RType = Int32Type
+) : BoundExpression
+
+data class BoundBufferAllocationExpression(
+    val length: BoundExpression,
+    override val type: ManagedPointerType,
+    override val span: SourceSpan
+) : BoundExpression
+
 data class BoundFreeExpression(
     val pointer: BoundExpression,
     override val span: SourceSpan,
     override val type: RType = UnitType
+) : BoundExpression
+
+data class BoundTypeIsFreedExpression(
+    val value: BoundExpression,
+    override val span: SourceSpan,
+    override val type: RType = BoolType
 ) : BoundExpression
 
 data class BoundManagedPointerExpression(

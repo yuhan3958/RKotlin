@@ -8,7 +8,10 @@ class IrLowering {
     fun lower(module: SemanticModule): IrModule =
         IrModule(
             module.functions.map(::lowerFunction) + module.classes.flatMap(::lowerAccessors),
-            module.classes.filter { lowerType(it.type) is IrObjectType && it.name != "Pointer" }.map { classSymbol ->
+            module.classes.filter {
+                lowerType(it.type) is IrObjectType &&
+                    it.name !in setOf("Pointer", "BufferPointer")
+            }.map { classSymbol ->
                 IrClass(
                     classSymbol.name,
                     classSymbol.fields.values.filter { it.ownerName == classSymbol.name }.map {
@@ -141,6 +144,14 @@ class IrLowering {
                         context.instructions += IrPointerStoreInstruction(
                             lowerExpression(target.pointer, context),
                             value
+                        )
+                    }
+                    is BoundBufferGetExpression -> {
+                        context.instructions += IrBufferSetInstruction(
+                            lowerExpression(target.pointer, context),
+                            coerce(lowerExpression(target.index, context), IrI32, context),
+                            value,
+                            lowerType(target.type)
                         )
                     }
                     else -> error("unsupported assignment target")
@@ -300,9 +311,14 @@ class IrLowering {
 
         is BoundAddressExpression -> {
             val local = context.locals[expression.value.symbol]
-                ?: error("unmapped address local")
             val result = context.newRegister(lowerType(expression.type))
-            context.instructions += IrAddressInstruction(result, local)
+            if (local != null) {
+                context.instructions += IrAddressInstruction(result, local)
+            } else {
+                val parameter = context.parameters[expression.value.symbol]
+                    ?: error("unmapped address value")
+                context.instructions += IrAddressValueInstruction(result, parameter)
+            }
             result
         }
 
@@ -311,6 +327,62 @@ class IrLowering {
             val value = coerce(lowerExpression(expression.value, context), (pointer.type as IrPointerType).pointee, context)
             context.instructions += IrPointerStoreInstruction(pointer, value)
             IrUnitValue
+        }
+
+        is BoundPointerAddExpression -> {
+            val result = context.newRegister(lowerType(expression.type))
+            context.instructions += IrPointerAddInstruction(
+                result,
+                lowerExpression(expression.pointer, context),
+                coerce(lowerExpression(expression.offset, context), IrI32, context),
+                lowerType(expression.type.pointee),
+                expression.direction
+            )
+            result
+        }
+
+        is BoundBufferGetExpression -> {
+            val result = context.newRegister(lowerType(expression.type))
+            context.instructions += IrBufferGetInstruction(
+                result,
+                lowerExpression(expression.pointer, context),
+                coerce(lowerExpression(expression.index, context), IrI32, context),
+                lowerType(expression.type)
+            )
+            result
+        }
+
+        is BoundBufferSetExpression -> {
+            context.instructions += IrBufferSetInstruction(
+                lowerExpression(expression.pointer, context),
+                coerce(lowerExpression(expression.index, context), IrI32, context),
+                coerce(
+                    lowerExpression(expression.value, context),
+                    lowerType((expression.pointer.type as ManagedPointerType).pointee),
+                    context
+                ),
+                lowerType((expression.pointer.type as ManagedPointerType).pointee)
+            )
+            IrUnitValue
+        }
+
+        is BoundBufferLengthExpression -> {
+            val result = context.newRegister(IrI32)
+            context.instructions += IrBufferLengthInstruction(
+                result,
+                lowerExpression(expression.pointer, context)
+            )
+            result
+        }
+
+        is BoundBufferAllocationExpression -> {
+            val result = context.newRegister(lowerType(expression.type))
+            context.instructions += IrBufferAllocationInstruction(
+                result,
+                coerce(lowerExpression(expression.length, context), IrI32, context),
+                lowerType(expression.type.pointee)
+            )
+            result
         }
 
         is BoundDereferenceExpression -> {
@@ -325,6 +397,15 @@ class IrLowering {
         is BoundFreeExpression -> {
             context.instructions += IrFreeInstruction(lowerExpression(expression.pointer, context))
             IrUnitValue
+        }
+
+        is BoundTypeIsFreedExpression -> {
+            val result = context.newRegister(IrI32)
+            context.instructions += IrTypeIsFreedInstruction(
+                result,
+                lowerExpression(expression.value, context)
+            )
+            result
         }
 
         is BoundManagedPointerExpression -> {
@@ -433,8 +514,15 @@ class IrLowering {
         UnitType -> IrVoid
         StringType -> IrString
         NullType -> IrPointerType(IrVoid)
+        PointerWildcardType -> IrVoid
         is NullableType -> if (type.underlying == Int32Type || type.underlying == BoolType) IrNullableI32 else lowerType(type.underlying)
-        is ManagedPointerType -> IrPointerType(lowerType(type.pointee))
+        is ManagedPointerType -> IrPointerType(
+            lowerType(type.pointee),
+            when (type.kind) {
+                ManagedPointerKind.POINTER -> IrPointerKind.POINTER
+                ManagedPointerKind.BUFFER -> IrPointerKind.BUFFER
+            }
+        )
         is ClassType -> when (type.name) {
             "Int", "Int32", "Bool" -> IrI32
             "String" -> IrString
@@ -452,7 +540,9 @@ class IrLowering {
     }
 
     private fun virtual(function: FunctionSymbol): Boolean = function.owner?.let {
-        lowerType(it.type) is IrObjectType && it.name != "Pointer" && function.name != "constructor" &&
+        lowerType(it.type) is IrObjectType &&
+            it.name !in setOf("Pointer", "BufferPointer") &&
+            function.name != "constructor" &&
             function.visibility != Visibility.PRIVATE && function.builtinTarget == null
     } == true
 

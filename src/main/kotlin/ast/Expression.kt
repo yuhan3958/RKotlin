@@ -30,6 +30,12 @@ data class NewExpression(
     override val span: SourceSpan
 ) : Expression
 
+data class AllocationExpression(
+    val elementType: TypeReference,
+    val length: Expression,
+    override val span: SourceSpan
+) : Expression
+
 data class MemberAccessExpression(
     val receiver: Expression,
     val name: String,
@@ -50,6 +56,22 @@ data class CallExpression(
     override val span: SourceSpan
 ) : Expression
 
+data class IndexExpression(
+    val receiver: Expression,
+    val index: Expression,
+    override val span: SourceSpan
+) : Expression
+
+data class UnaryExpression(
+    val operator: UnaryOperator,
+    val operand: Expression,
+    override val span: SourceSpan
+) : Expression
+
+enum class UnaryOperator {
+    NOT
+}
+
 enum class BinaryOperator {
     ADD,
     SUB,
@@ -60,7 +82,10 @@ enum class BinaryOperator {
     LESS,
     LESS_EQUALS,
     GREATER,
-    GREATER_EQUALS
+    GREATER_EQUALS,
+    AND,
+    OR,
+    XOR
 }
 
 data class BinaryExpression(

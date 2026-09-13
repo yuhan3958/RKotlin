@@ -1,5 +1,5 @@
 public class Bool {
-    public native fun address(): Pointer<Bool> = "address";
+
     private native fun equalValue(other: Bool): Bool = "bool.equal";
 
     public fun equals(other: Bool): Bool { return equalValue(other) }

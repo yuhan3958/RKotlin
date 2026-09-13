@@ -22,12 +22,23 @@ data object StringType : RType {
 
 data object NullType : RType { override val displayName: String = "null" }
 
+data object PointerWildcardType : RType { override val displayName: String = "*" }
+
 data class NullableType(val underlying: RType) : RType {
     override val displayName: String = "${underlying.displayName}?"
 }
 
-data class ManagedPointerType(val pointee: RType, val writable: Boolean = true) : RType {
-    override val displayName: String = "Pointer<${pointee.displayName}>"
+enum class ManagedPointerKind(val displayName: String) {
+    POINTER("Pointer"),
+    BUFFER("BufferPointer")
+}
+
+data class ManagedPointerType(
+    val pointee: RType,
+    val writable: Boolean = true,
+    val kind: ManagedPointerKind = ManagedPointerKind.POINTER
+) : RType {
+    override val displayName: String = "${kind.displayName}<${pointee.displayName}>"
 }
 
 data class ClassType(

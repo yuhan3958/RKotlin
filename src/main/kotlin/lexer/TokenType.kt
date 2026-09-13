@@ -41,11 +41,17 @@ enum class TokenType {
     RPAREN,
     LBRACE,
     RBRACE,
+    LBRACKET,
+    RBRACKET,
 
     PLUS,
     MINUS,
     STAR,
     SLASH,
+    BANG,
+    AND_AND,
+    OR_OR,
+    CARET,
     DOT_DOT,
 
     EQUAL,

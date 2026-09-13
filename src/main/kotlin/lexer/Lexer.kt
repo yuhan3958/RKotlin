@@ -53,10 +53,21 @@ class Lexer(
             c == ')' -> simple(TokenType.RPAREN, start)
             c == '{' -> simple(TokenType.LBRACE, start)
             c == '}' -> simple(TokenType.RBRACE, start)
+            c == '[' -> simple(TokenType.LBRACKET, start)
+            c == ']' -> simple(TokenType.RBRACKET, start)
             c == '+' -> simple(TokenType.PLUS, start)
             c == '-' -> simple(TokenType.MINUS, start)
             c == '*' -> simple(TokenType.STAR, start)
             c == '/' -> simple(TokenType.SLASH, start)
+            c == '&' && peek() == '&' -> {
+                position++
+                simple(TokenType.AND_AND, start)
+            }
+            c == '|' && peek() == '|' -> {
+                position++
+                simple(TokenType.OR_OR, start)
+            }
+            c == '^' -> simple(TokenType.CARET, start)
             c == '=' && peek() == '=' -> {
                 position++
                 simple(TokenType.EQUAL_EQUAL, start)
@@ -66,6 +77,7 @@ class Lexer(
                 position++
                 simple(TokenType.BANG_EQUAL, start)
             }
+            c == '!' -> simple(TokenType.BANG, start)
             c == '<' && peek() == '=' -> {
                 position++
                 simple(TokenType.LESS_EQUAL, start)

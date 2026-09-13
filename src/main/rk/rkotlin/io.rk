@@ -19,9 +19,16 @@ public fun println(value: String): Void {
     writeText(value + "\n")
 }
 
+public fun println(value: Pointer<*>): Void {
+    println(value.toString())
+}
+
 public fun println(value: Bool): Void { println(value.toString()) }
+public fun println(value: Type): Void { println(value.address()) }
 public fun println(): Void { println("") }
 public fun print(value: String): Void { writeText(value) }
 public fun print(value: Int): Void { writeText(value.toString()) }
 public fun print(value: Bool): Void { writeText(value.toString()) }
+public fun print(value: Pointer<*>): Void { writeText(value.toString()) }
+public fun print(value: Type): Void { print(value.address()) }
 public fun readLine(): String? { return readText() }

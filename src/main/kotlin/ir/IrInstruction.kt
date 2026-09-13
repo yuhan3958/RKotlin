@@ -46,9 +46,36 @@ data class IrSelectNonNullInstruction(
 ) : IrInstruction
 
 data class IrPointerLoadInstruction(val result: IrRegister, val pointer: IrValue) : IrInstruction
+data class IrPointerAddInstruction(
+    val result: IrRegister,
+    val pointer: IrValue,
+    val offset: IrValue,
+    val pointeeType: IrType,
+    val direction: Int = 1
+) : IrInstruction
+data class IrBufferGetInstruction(
+    val result: IrRegister,
+    val pointer: IrValue,
+    val index: IrValue,
+    val pointeeType: IrType
+) : IrInstruction
+data class IrBufferSetInstruction(
+    val pointer: IrValue,
+    val index: IrValue,
+    val value: IrValue,
+    val pointeeType: IrType
+) : IrInstruction
+data class IrBufferLengthInstruction(val result: IrRegister, val pointer: IrValue) : IrInstruction
+data class IrBufferAllocationInstruction(
+    val result: IrRegister,
+    val length: IrValue,
+    val pointeeType: IrType
+) : IrInstruction
 data class IrAddressInstruction(val result: IrRegister, val local: IrLocal) : IrInstruction
+data class IrAddressValueInstruction(val result: IrRegister, val value: IrValue) : IrInstruction
 data class IrPointerStoreInstruction(val pointer: IrValue, val value: IrValue) : IrInstruction
 data class IrFreeInstruction(val pointer: IrValue) : IrInstruction
+data class IrTypeIsFreedInstruction(val result: IrRegister, val value: IrValue) : IrInstruction
 data class IrManagedPointerInstruction(
     val result: IrRegister,
     val initializer: IrValue,

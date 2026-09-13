@@ -64,5 +64,4 @@ public class Int32 {
         return result
     }
 
-    public native fun address(): Pointer<Int32> = "address";
 }

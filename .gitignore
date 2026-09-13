@@ -46,3 +46,7 @@ bin/
 
 ### MinGW ###
 /toolchain/mingw64/
+
+### output ###
+
+/examples/output/*

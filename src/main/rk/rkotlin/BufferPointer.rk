@@ -1,0 +1,12 @@
+public class BufferPointer<T> {
+    public native fun read(): T = "pointer.read";
+    public native fun write(value: T): Void = "pointer.write";
+    public native fun get(index: Int): T = "buffer.get";
+    public native fun set(index: Int, value: T): Void = "buffer.set";
+    public native fun length(): Int = "buffer.length";
+    public native fun add(offset: Int): BufferPointer<T> = "pointer.add";
+    public native fun plus(offset: Int): BufferPointer<T> = "pointer.add";
+    private native fun addressString(): String = "pointer.addressString";
+
+    public native fun toString(): String = "pointer.toString";
+}

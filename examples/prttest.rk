@@ -1,0 +1,84 @@
+import rkotlin.StringBuilder
+
+fun main() {
+    val sBuilder = new StringBuilder();
+    sBuilder.append("Hello, Rkotlin!");
+
+    var str = sBuilder.toString();
+    check(str == "Hello, Rkotlin!", "StringBuilder output");
+
+    // Pointer<T> : 단일 객체/변수 슬롯
+    val ptr = str.address();
+    val ptr2 = ptr.address();
+    val ptr3 = ptr2.address();
+
+    check(ptr.read() == "Hello, Rkotlin!", "Pointer.read");
+
+    ptr.write("Rkotlin");
+    check(str == "Rkotlin", "Pointer.write changes original variable");
+    check(ptr.read() == "Rkotlin", "Pointer.read after write");
+
+    // Pointer<T>에서는 포인터 산술 금지
+    // val invalid = ptr + 1;
+
+
+    // BufferPointer<T> : 연속된 메모리
+    val buffer: BufferPointer<String> = alloc<String>(3);
+
+    buffer.write("Rkotlin");
+
+    val buffer1 = buffer + 1;
+    val buffer2 = buffer + 2;
+
+    buffer1.write("!");
+    buffer2.write("!!");
+
+    check(buffer.read() == "Rkotlin", "buffer[0]");
+    check(buffer1.read() == "!", "buffer[1]");
+    check(buffer2.read() == "!!", "buffer[2]");
+
+    check(
+        buffer.read() + buffer1.read() + buffer2.read() == "Rkotlin!!!",
+        "BufferPointer arithmetic"
+    );
+
+    // 원본 Pointer를 free해도 str 자체는 살아 있어야 함.
+    ptr.free();
+
+    check(ptr.isFreed(), "Pointer.free");
+    check(str == "Rkotlin", "freeing borrowed Pointer must not free pointee");
+
+    // ptr을 가리키는 ptr2는 여전히 읽을 수 있음.
+    check(
+        ptr2.read().isFreed(),
+        "Pointer<Pointer<T>> can observe freed inner pointer"
+    );
+
+    // 하지만 이것은 런타임 오류여야 함.
+    // ptr2.read().read();
+
+
+    // 객체 포인터
+    check(!sBuilder.isFreed(), "StringBuilder initially alive");
+    sBuilder.free();
+    check(sBuilder.isFreed(), "StringBuilder.free");
+
+    // 중첩 Pointer 핸들 정리
+    ptr2.free();
+    ptr3.free();
+
+    check(ptr2.isFreed(), "second-level pointer free");
+    check(ptr3.isFreed(), "third-level pointer free");
+
+
+    // BufferPointer의 소유권 정책에 따라:
+    buffer.free();
+
+    check(buffer.isFreed(), "buffer freed");
+
+    // 파생 view가 같은 allocation 상태를 공유한다면 이것도 true
+    check(buffer1.isFreed(), "buffer view observes freed allocation");
+    check(buffer2.isFreed(), "buffer view observes freed allocation");
+
+    println("pointer/buffer: ok");
+}

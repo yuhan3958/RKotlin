@@ -1,0 +1,5 @@
+public class Type {
+    public native fun address(): Pointer<*> = "address";
+    public native fun free(): Void = "type.free";
+    public native fun isFreed(): Bool = "type.isFreed";
+}

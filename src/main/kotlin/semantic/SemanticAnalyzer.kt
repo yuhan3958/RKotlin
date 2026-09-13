@@ -79,7 +79,8 @@ class SemanticAnalyzer(
                 if (declaration.name == "Pointer" && !declaration.span.source.path.toAbsolutePath().normalize().startsWith(libraryRoot)) {
                     diagnostics.fail(declaration.span, "Pointer is defined by the standard library")
                 }
-                if (declaration.typeParameters.isNotEmpty() && declaration.name != "Pointer") {
+                if (declaration.typeParameters.isNotEmpty() &&
+                    declaration.name !in setOf("Pointer", "BufferPointer")) {
                     diagnostics.fail(declaration.span, "generic class declarations are not yet supported")
                 }
             }
@@ -159,7 +160,8 @@ class SemanticAnalyzer(
 
     private fun registerAccessors() {
         for (owner in classes.values) {
-            if (owner.constructor == null && !owner.type.objectLike && owner.name !in nativeTypes && owner.name != "Pointer") {
+            if (owner.constructor == null && !owner.type.objectLike && owner.name !in nativeTypes &&
+                owner.name !in setOf("Pointer", "BufferPointer")) {
                 if (owner.fields.values.any { it.type is ClassType || it.type is ManagedPointerType }) {
                     diagnostics.fail(owner.declarationSpan!!, "non-null object fields require an explicit constructor")
                 }
@@ -212,10 +214,17 @@ class SemanticAnalyzer(
             resolveClassType(baseType)
             val scalarAlias = owner.name == "Int" && base.name == "Int32"
             if (baseType.nullable || baseType.arguments.isNotEmpty() || base.type.objectLike ||
-                (!scalarAlias && (base.name in nativeTypes || owner.name in nativeTypes)) || base.name == "Pointer" || owner.name == "Pointer") {
+                (!scalarAlias && base.name != "Type" && (base.name in nativeTypes || owner.name in nativeTypes)) ||
+                base.name == "Pointer" || (owner.name == "Pointer" && base.name != "Type")) {
                 diagnostics.fail(baseType.span, "superclass must be an ordinary non-generic class")
             }
             owner.baseClass = base
+        }
+        val root = classes["Type"]
+        if (root != null) {
+            classes.values
+                .filter { it !== root && it.baseClass == null }
+                .forEach { it.baseClass = root }
         }
         val visiting = mutableSetOf<String>()
         val complete = mutableSetOf<String>()
@@ -294,7 +303,7 @@ class SemanticAnalyzer(
         declaration: FunctionDeclaration,
         owner: ClassSymbol?
     ) {
-        typeParameters = if (owner?.name == "Pointer") setOf("T") else emptySet()
+        typeParameters = if (owner?.name in setOf("Pointer", "BufferPointer")) setOf("T") else emptySet()
         declaration.nativeTarget?.let { target ->
             if (!declaration.span.source.path.toAbsolutePath().normalize().startsWith(libraryRoot)) {
                 diagnostics.fail(declaration.span, "intrinsics are restricted to the standard library")
@@ -467,6 +476,11 @@ class SemanticAnalyzer(
                             (target.receiver as? BoundNameExpression)?.symbol?.name == "this") &&
                         initializedFields.add(target.field.name))
                 is BoundDereferenceExpression -> true
+                is BoundBufferGetExpression -> {
+                    val pointerType = target.pointer.type as? ManagedPointerType
+                        ?: diagnostics.fail(statement.target.span, "invalid buffer index target")
+                    pointerType.writable
+                }
                 else -> diagnostics.fail(statement.target.span, "assignment target is not writable")
             }
             if (!mutable) {
@@ -588,7 +602,8 @@ class SemanticAnalyzer(
 
         is NewExpression -> {
             if (expression.type.nullable) diagnostics.fail(expression.span, "construct a non-null type")
-            if (expression.type.name != "Pointer" && expression.type.arguments.isNotEmpty()) {
+            if (expression.type.name !in setOf("Pointer", "BufferPointer") &&
+                expression.type.arguments.isNotEmpty()) {
                 diagnostics.fail(expression.span, "type '${expression.type.name}' does not accept type arguments")
             }
             val standardType = nativeTypes[expression.type.name]
@@ -608,11 +623,28 @@ class SemanticAnalyzer(
                 }
                 return arguments.single()
             }
-            if (expression.type.name == "Pointer") {
+            if (expression.type.name in setOf("Pointer", "BufferPointer")) {
                 val managedType = resolveType(expression.type) as? ManagedPointerType
                     ?: diagnostics.fail(expression.type.span, "Pointer requires one type argument")
+                if (managedType.kind == ManagedPointerKind.BUFFER) {
+                    if (expression.arguments.size != 1) {
+                        diagnostics.fail(expression.span, "BufferPointer constructor expects one Int length")
+                    }
+                    val length = bindExpression(expression.arguments.single(), scope, owner)
+                    if (length.type != Int32Type) {
+                        diagnostics.fail(expression.span, "BufferPointer constructor expects one Int length")
+                    }
+                    return BoundBufferAllocationExpression(
+                        length,
+                        managedType,
+                        expression.span
+                    )
+                }
                 if (expression.arguments.size != 1) {
                     diagnostics.fail(expression.span, "Pointer constructor expects one initializer")
+                }
+                if (managedType.pointee == PointerWildcardType) {
+                    diagnostics.fail(expression.span, "${managedType.kind.displayName}<*> cannot be constructed")
                 }
                 val initializer = bindExpression(expression.arguments.single(), scope, owner)
                 if (!isAssignable(managedType.pointee, initializer.type)) {
@@ -633,6 +665,56 @@ class SemanticAnalyzer(
                 checkAccess(constructor, owner, expression.span)
             }
             BoundNewExpression(classType, arguments, constructor, expression.span)
+        }
+
+        is AllocationExpression -> {
+            val pointee = resolveType(expression.elementType)
+            if (pointee == UnitType || pointee == PointerWildcardType) {
+                diagnostics.fail(expression.span, "alloc requires a concrete value type")
+            }
+            val length = bindExpression(expression.length, scope, owner)
+            if (length.type != Int32Type) {
+                diagnostics.fail(expression.length.span, "alloc length must be Int")
+            }
+            BoundBufferAllocationExpression(
+                length,
+                ManagedPointerType(pointee, kind = ManagedPointerKind.BUFFER),
+                expression.span
+            )
+        }
+
+        is IndexExpression -> {
+            val receiver = bindExpression(expression.receiver, scope, owner)
+            if (receiver.type is NullableType) {
+                diagnostics.fail(expression.span, "nullable BufferPointer must be resolved before indexing")
+            }
+            val pointerType = unwrapNullable(receiver.type) as? ManagedPointerType
+                ?: diagnostics.fail(expression.span, "indexing requires BufferPointer")
+            if (pointerType.kind != ManagedPointerKind.BUFFER) {
+                diagnostics.fail(expression.span, "indexing requires BufferPointer")
+            }
+            if (pointerType.pointee == PointerWildcardType) {
+                diagnostics.fail(expression.span, "cannot index BufferPointer<*>")
+            }
+            val index = bindExpression(expression.index, scope, owner)
+            if (index.type != Int32Type) {
+                diagnostics.fail(expression.index.span, "buffer index must be Int")
+            }
+            BoundBufferGetExpression(receiver, index, pointerType.pointee, expression.span)
+        }
+
+        is UnaryExpression -> {
+            val operand = bindExpression(expression.operand, scope, owner)
+            if (expression.operator != UnaryOperator.NOT || operand.type != BoolType) {
+                diagnostics.fail(expression.span, "operator 'NOT' requires Bool")
+            }
+            BoundCallExpression(
+                classes.getValue("Bool").methods.getValue("not"),
+                emptyList(),
+                expression.span,
+                BoolType,
+                receiver = operand
+            )
         }
 
         is MemberAccessExpression -> {
@@ -686,6 +768,21 @@ class SemanticAnalyzer(
                 if (expression.operator == BinaryOperator.EQUALS) BoundBinaryOperator.EQ_I32 else BoundBinaryOperator.NE_I32,
                 right, expression.span, BoolType)
         }
+        val leftType = left.type
+        if (expression.operator in setOf(BinaryOperator.ADD, BinaryOperator.SUB) &&
+            leftType is ManagedPointerType &&
+            leftType.kind == ManagedPointerKind.BUFFER) {
+            if (right.type != Int32Type) {
+                diagnostics.fail(expression.span, "operator 'ADD' has incompatible operands")
+            }
+            return BoundPointerAddExpression(
+                left,
+                right,
+                ManagedPointerType(leftType.pointee, leftType.writable, leftType.kind),
+                expression.span,
+                if (expression.operator == BinaryOperator.ADD) 1 else -1
+            )
+        }
         val name = when (expression.operator) {
             BinaryOperator.ADD -> "plus"
             BinaryOperator.SUB -> "minus"
@@ -697,6 +794,9 @@ class SemanticAnalyzer(
             BinaryOperator.LESS_EQUALS -> "lessOrEqual"
             BinaryOperator.GREATER -> "greaterThan"
             BinaryOperator.GREATER_EQUALS -> "greaterOrEqual"
+            BinaryOperator.AND -> "and"
+            BinaryOperator.OR -> "or"
+            BinaryOperator.XOR -> "xor"
         }
         val method = classes[left.type.displayName]?.methods?.get(name)
             ?: diagnostics.fail(expression.span, "operator '${expression.operator}' is not defined on ${left.type.displayName}")
@@ -748,18 +848,99 @@ class SemanticAnalyzer(
                 if (receiver.type is NullableType && unwrapNullable(receiver.type) is ManagedPointerType) {
                     diagnostics.fail(target.span, "nullable receiver must be resolved before calling a memory method")
                 }
+                if (target.name == "isFreed" && receiver.type !is NullableType) {
+                    if (arguments.isNotEmpty()) {
+                        diagnostics.fail(expression.span, "isFreed expects no arguments")
+                    }
+                    return BoundTypeIsFreedExpression(receiver, expression.span)
+                }
+                if (receiver.type is ManagedPointerType && target.name == "address") {
+                    if (arguments.isNotEmpty()) diagnostics.fail(expression.span, "address expects no arguments")
+                    val value = receiver as? BoundNameExpression
+                        ?: diagnostics.fail(target.span, "address requires a local variable")
+                    if (value.symbol !is VariableSymbol && value.symbol !is ParameterSymbol) {
+                        diagnostics.fail(target.span, "address requires a local variable")
+                    }
+                    return BoundAddressExpression(value, expression.span)
+                }
                 val pointerType = unwrapNullable(receiver.type) as? ManagedPointerType
                 if (pointerType != null) {
-                    if (classes["Pointer"]?.methods?.containsKey(target.name) != true) {
+                    val pointerClass = when (pointerType.kind) {
+                        ManagedPointerKind.POINTER -> "Pointer"
+                        ManagedPointerKind.BUFFER -> "BufferPointer"
+                    }
+                    if (classes[pointerClass]?.methods?.containsKey(target.name) != true) {
                         diagnostics.fail(target.span, "unknown Pointer method '${target.name}'")
                     }
                     return when (target.name) {
+                        "add", "plus" -> {
+                            if (pointerType.kind != ManagedPointerKind.BUFFER) {
+                                diagnostics.fail(expression.span, "pointer arithmetic requires BufferPointer")
+                            }
+                            if (arguments.size != 1 || arguments[0].type != Int32Type) {
+                                diagnostics.fail(expression.span, "operator 'plus' has incompatible operands")
+                            }
+                            BoundPointerAddExpression(
+                                receiver,
+                                arguments.single(),
+                                ManagedPointerType(
+                                    pointerType.pointee,
+                                    pointerType.writable,
+                                    pointerType.kind
+                                ),
+                                expression.span
+                            )
+                        }
+                        "get" -> {
+                            if (pointerType.kind != ManagedPointerKind.BUFFER) {
+                                diagnostics.fail(expression.span, "get requires BufferPointer")
+                            }
+                            if (pointerType.pointee == PointerWildcardType) {
+                                diagnostics.fail(expression.span, "cannot get from BufferPointer<*>")
+                            }
+                            if (arguments.size != 1 || arguments[0].type != Int32Type) {
+                                diagnostics.fail(expression.span, "get expects one Int index")
+                            }
+                            BoundBufferGetExpression(receiver, arguments.single(), pointerType.pointee, expression.span)
+                        }
+                        "set" -> {
+                            if (pointerType.kind != ManagedPointerKind.BUFFER) {
+                                diagnostics.fail(expression.span, "set requires BufferPointer")
+                            }
+                            if (!pointerType.writable) {
+                                diagnostics.fail(expression.span, "cannot write through the address of a val")
+                            }
+                            if (pointerType.pointee == PointerWildcardType) {
+                                diagnostics.fail(expression.span, "cannot set BufferPointer<*>")
+                            }
+                            if (arguments.size != 2 ||
+                                arguments[0].type != Int32Type ||
+                                !isAssignable(pointerType.pointee, arguments[1].type)) {
+                                diagnostics.fail(expression.span, "set expects an Int index and a ${pointerType.pointee.displayName} value")
+                            }
+                            BoundBufferSetExpression(receiver, arguments[0], arguments[1], expression.span)
+                        }
+                        "length" -> {
+                            if (pointerType.kind != ManagedPointerKind.BUFFER) {
+                                diagnostics.fail(expression.span, "length requires BufferPointer")
+                            }
+                            if (arguments.isNotEmpty()) {
+                                diagnostics.fail(expression.span, "length expects no arguments")
+                            }
+                            BoundBufferLengthExpression(receiver, expression.span)
+                        }
                         "read" -> {
                             if (arguments.isNotEmpty()) diagnostics.fail(expression.span, "read expects no arguments")
+                            if (pointerType.pointee == PointerWildcardType) {
+                                diagnostics.fail(expression.span, "cannot read from Pointer<*>")
+                            }
                             BoundDereferenceExpression(receiver, expression.span, pointerType.pointee)
                         }
                         "write" -> {
                             if (!pointerType.writable) diagnostics.fail(expression.span, "cannot write through the address of a val")
+                            if (pointerType.pointee == PointerWildcardType) {
+                                diagnostics.fail(expression.span, "cannot write to Pointer<*>")
+                            }
                             if (arguments.size != 1 || !isAssignable(pointerType.pointee, arguments[0].type)) {
                                 diagnostics.fail(expression.span, "write expects one ${pointerType.pointee.displayName} argument")
                             }
@@ -771,20 +952,23 @@ class SemanticAnalyzer(
                         }
                         "isFreed" -> {
                             if (arguments.isNotEmpty()) diagnostics.fail(expression.span, "isFreed expects no arguments")
-                            BoundCallExpression(classes.getValue("Pointer").methods.getValue("isFreed"),
+                            BoundCallExpression(classes.getValue(pointerClass).methods.getValue("isFreed"),
+                                emptyList(), expression.span, receiver = receiver)
+                        }
+                        "toString" -> {
+                            if (arguments.isNotEmpty()) diagnostics.fail(expression.span, "toString expects no arguments")
+                            BoundCallExpression(classes.getValue(pointerClass).methods.getValue("toString"),
                                 emptyList(), expression.span, receiver = receiver)
                         }
                         else -> diagnostics.fail(target.span, "unknown Pointer method '${target.name}'")
                     }
                 }
-                if (receiver.type in setOf(Int32Type, BoolType, StringType) && target.name == "address") {
-                    if (classes[receiver.type.displayName]?.methods?.containsKey("address") != true) {
-                        diagnostics.fail(target.span, "${receiver.type.displayName}.address is not declared")
-                    }
+                if ((receiver.type in setOf(Int32Type, BoolType, StringType) ||
+                        receiver.type is ClassType) && target.name == "address") {
                     if (arguments.isNotEmpty()) diagnostics.fail(expression.span, "address expects no arguments")
                     val value = receiver as? BoundNameExpression
                         ?: diagnostics.fail(target.span, "address requires a local variable")
-                    if (value.symbol !is VariableSymbol) {
+                    if (value.symbol !is VariableSymbol && value.symbol !is ParameterSymbol) {
                         diagnostics.fail(target.span, "address requires a local variable")
                     }
                     return BoundAddressExpression(value, expression.span)
@@ -857,14 +1041,26 @@ class SemanticAnalyzer(
         } ?: diagnostics.fail(type.span, "unknown type '${type.name}'")
 
     private fun resolveType(type: TypeReference): RType = when (type.name) {
-        "Pointer" -> {
-            if ("Pointer" !in classes) diagnostics.fail(type.span, "Pointer is not imported")
+        "Pointer", "BufferPointer" -> {
+            if (type.name !in classes) diagnostics.fail(type.span, "${type.name} is not imported")
             if (type.arguments.size != 1) {
-                diagnostics.fail(type.span, "Pointer requires exactly one type argument")
+                diagnostics.fail(type.span, "${type.name} requires exactly one type argument")
             }
-            val pointee = resolveType(type.arguments.single())
-            if (pointee == UnitType) diagnostics.fail(type.span, "Pointer requires a value type")
-            ManagedPointerType(pointee)
+            val argument = type.arguments.single()
+            val pointee = if (argument.name == "*" && argument.arguments.isEmpty() && !argument.nullable) {
+                PointerWildcardType
+            } else {
+                resolveType(argument)
+            }
+            if (pointee == UnitType) diagnostics.fail(type.span, "${type.name} requires a value type")
+            ManagedPointerType(
+                pointee,
+                kind = if (type.name == "BufferPointer") {
+                    ManagedPointerKind.BUFFER
+                } else {
+                    ManagedPointerKind.POINTER
+                }
+            )
         }
         else -> {
             if (type.arguments.isNotEmpty()) diagnostics.fail(type.span, "type '${type.name}' does not accept type arguments")
@@ -892,6 +1088,12 @@ class SemanticAnalyzer(
         if (expected == actual) return true
         if (expected is NullableType) return actual == NullType ||
             isAssignable(expected.underlying, unwrapNullable(actual))
+        if (expected is ManagedPointerType && actual is ManagedPointerType) {
+            if (expected.kind != actual.kind) return false
+            if (expected.pointee == PointerWildcardType) return true
+            if (actual.pointee == PointerWildcardType) return false
+            return isAssignable(expected.pointee, actual.pointee)
+        }
         if (expected is ClassType && actual is ClassType) return isSubclass(classes[actual.name], classes.getValue(expected.name))
         return false
     }

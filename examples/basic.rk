@@ -1,18 +1,55 @@
-class Point {
-    var x: Int32;
-    var y: Int32;
+fun main() {
+    val size: Int32 = 8
+    val buffer: BufferPointer<Int32> = alloc<Int32>(size)
 
-    fun sum(): Int32 {
-        return x + y;
+    var i: Int32 = 0
+
+    // 10, 20, 30 ... 80 저장
+    while (i < size) {
+        val p = buffer + i
+        p.write((i + 1) * 10)
+        i = i + 1
     }
-}
 
-fun main(): Int32 {
-    val point: Point = new Point();
-    point.x = 20;
-    point.y = 22;
+    // 검증
+    check((buffer + 0).read() == 10, "buffer[0]")
+    check((buffer + 7).read() == 80, "buffer[7]")
 
-    println("point sum:");
-    println(point.sum());
-    return point.sum();
+    // 제자리 reverse
+    var left: Int32 = 0
+    var right: Int32 = size - 1
+
+    while (left < right) {
+        val lp = buffer + left
+        val rp = buffer + right
+
+        val temp = lp.read()
+        lp.write(rp.read())
+        rp.write(temp)
+
+        left = left + 1
+        right = right - 1
+    }
+
+    check((buffer + 0).read() == 80, "reverse first")
+    check((buffer + 1).read() == 70, "reverse second")
+    check((buffer + 6).read() == 20, "reverse before last")
+    check((buffer + 7).read() == 10, "reverse last")
+
+    // 합계
+    var sum: Int32 = 0
+    i = 0
+
+    while (i < size) {
+        sum = sum + (buffer + i).read()
+        i = i + 1
+    }
+
+    check(sum == 360, "sum")
+
+    println("buffer algorithm: ok")
+
+    buffer.free()
+
+    check(buffer.isFreed(), "buffer must be freed")
 }

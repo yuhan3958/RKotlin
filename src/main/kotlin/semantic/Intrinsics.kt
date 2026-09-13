@@ -4,6 +4,10 @@ package me.rkt.semantic
 object Intrinsics {
     val targets = setOf(
         "address", "pointer.read", "pointer.write", "pointer.free", "pointer.isFreed",
+        "pointer.add", "pointer.toString",
+        "buffer.get", "buffer.set", "buffer.length",
+        "pointer.addressString",
+        "type.free", "type.isFreed",
         "readLine", "printString", "panic",
         "int.add", "int.subtract", "int.multiply", "int.divide", "int.remainder",
         "int.less", "int.equal", "int.toString", "bool.equal",

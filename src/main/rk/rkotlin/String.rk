@@ -1,5 +1,4 @@
 public class String {
-    public native fun address(): Pointer<String> = "address";
     private native fun countValue(): Int = "string.length";
     private native fun codeValue(index: Int): Int = "string.codeAt";
     private native fun sliceValue(start: Int, end: Int): String = "string.slice";
