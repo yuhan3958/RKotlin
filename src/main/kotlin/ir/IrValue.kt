@@ -14,6 +14,8 @@ data class IrStringConstant(
     override val type: IrType = IrString
 ) : IrValue
 
+data class IrNullConstant(override val type: IrType) : IrValue
+
 data class IrParameter(
     val index: Int,
     val name: String,

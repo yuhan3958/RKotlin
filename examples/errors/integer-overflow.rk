@@ -1,0 +1,2 @@
+// Expected runtime failure: checked Int arithmetic rejects overflow. Do not run automatically.
+fun main(): Int { return 2147483647 + 1 }

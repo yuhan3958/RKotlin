@@ -1,0 +1,27 @@
+private native fun writeText(value: String): Void = "printString";
+private native fun readText(): String? = "readLine";
+
+public fun readInt32(): Int32 {
+    val line = readLine()
+    require(line != null, "end of input")
+    return (line ?: "").trim().toInt()
+}
+
+public fun input(): Int32 {
+    return readInt32()
+}
+
+public fun println(value: Int32): Void {
+    println(value.toString())
+}
+
+public fun println(value: String): Void {
+    writeText(value + "\n")
+}
+
+public fun println(value: Bool): Void { println(value.toString()) }
+public fun println(): Void { println("") }
+public fun print(value: String): Void { writeText(value) }
+public fun print(value: Int): Void { writeText(value.toString()) }
+public fun print(value: Bool): Void { writeText(value.toString()) }
+public fun readLine(): String? { return readText() }

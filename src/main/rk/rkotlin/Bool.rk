@@ -1,0 +1,34 @@
+public class Bool {
+    public native fun address(): Pointer<Bool> = "address";
+    private native fun equalValue(other: Bool): Bool = "bool.equal";
+
+    public fun equals(other: Bool): Bool { return equalValue(other) }
+    public fun notEquals(other: Bool): Bool { return equals(other).not() }
+
+    public fun not(): Bool {
+        if (this) { return false }
+        return true
+    }
+
+    public fun and(other: Bool): Bool {
+        if (this) { return other }
+        return false
+    }
+
+    public fun or(other: Bool): Bool {
+        if (this) { return true }
+        return other
+    }
+
+    public fun xor(other: Bool): Bool { return notEquals(other) }
+
+    public fun toInt(): Int {
+        if (this) { return 1 }
+        return 0
+    }
+
+    public fun toString(): String {
+        if (this) { return "true" }
+        return "false"
+    }
+}

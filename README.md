@@ -2,6 +2,8 @@
 
 # RKotlin
 
+For the current `.rk` class syntax, inheritance rules, standard-library methods, and source fixtures, see [examples/README.md](examples/README.md). Historical examples below may use older syntax. The newly added fixtures have not been built or executed.
+
 > **I don't like Kotlin's ambiguity.**
 
 RKotlin is an experimental, statically typed, object-oriented programming language inspired by Kotlin.

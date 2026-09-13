@@ -21,8 +21,18 @@ class Parser(
                 imports += parseImport(previous())
             } else {
                 declarations += when {
+                    check(TokenType.PUBLIC) || check(TokenType.PRIVATE) -> {
+                        val visibility = parseVisibility()
+                        when {
+                            check(TokenType.NATIVE) -> parseNativeDeclaration(visibility)
+                            check(TokenType.CLASS) -> parseClassDeclaration(visibility)
+                            check(TokenType.OBJECT) -> parseObjectDeclaration(visibility)
+                            else -> parseFunctionDeclaration(visibility = visibility)
+                        }
+                    }
                     check(TokenType.CLASS) -> parseClassDeclaration()
                     check(TokenType.OBJECT) -> parseObjectDeclaration()
+                    check(TokenType.NATIVE) -> parseNativeDeclaration(Visibility.PUBLIC)
                     else -> parseFunctionDeclaration()
                 }
             }
@@ -35,6 +45,14 @@ class Parser(
         }
 
         return AstModule(declarations, span, imports)
+    }
+
+    private fun parseNativeDeclaration(visibility: Visibility): Declaration {
+        val start = expect(TokenType.NATIVE)
+        if (match(TokenType.TYPE)) {
+            diagnostics.fail(start.span, "native types are not part of RKotlin")
+        }
+        return parseFunctionDeclaration(visibility = visibility, nativeStart = start)
     }
 
     private fun parseImport(start: Token): ImportDeclaration {
@@ -51,23 +69,40 @@ class Parser(
         return ImportDeclaration(path, start.span.merge(end))
     }
 
-    private fun parseClassDeclaration(): ClassDeclaration =
-        parseTypeDeclaration(isObject = false) as ClassDeclaration
+    private fun parseClassDeclaration(visibility: Visibility = Visibility.PUBLIC): ClassDeclaration =
+        parseTypeDeclaration(isObject = false, visibility = visibility) as ClassDeclaration
 
-    private fun parseObjectDeclaration(): ObjectDeclaration =
-        parseTypeDeclaration(isObject = true) as ObjectDeclaration
+    private fun parseObjectDeclaration(visibility: Visibility = Visibility.PUBLIC): ObjectDeclaration =
+        parseTypeDeclaration(isObject = true, visibility = visibility) as ObjectDeclaration
 
-    private fun parseTypeDeclaration(isObject: Boolean): Declaration {
+    private fun parseTypeDeclaration(isObject: Boolean, visibility: Visibility): Declaration {
         val start = advance()
         val name = expect(TokenType.IDENTIFIER)
+        val typeParameters = mutableListOf<String>()
+        if (match(TokenType.LESS)) {
+            do { typeParameters += expect(TokenType.IDENTIFIER).text } while (match(TokenType.COMMA))
+            expect(TokenType.GREATER)
+        }
+        val baseType = if (match(TokenType.COLON)) parseTypeReference() else null
+        if (isObject && baseType != null) diagnostics.fail(baseType.span, "objects cannot declare a superclass")
         expect(TokenType.LBRACE)
         val members = mutableListOf<ClassMember>()
         while (!check(TokenType.RBRACE) && !check(TokenType.EOF)) {
+            val memberVisibility = parseVisibility()
+            val overriding = match(TokenType.OVERRIDE)
+            if (overriding && !check(TokenType.FUN)) diagnostics.fail(current().span, "override requires a method")
             members += when {
                 check(TokenType.VAR) || check(TokenType.VAL) ->
-                    parseFieldDeclaration(advance())
+                    parseFieldDeclaration(advance(), memberVisibility)
                 check(TokenType.FUN) ->
-                    parseFunctionDeclaration(name.text)
+                    parseFunctionDeclaration(name.text, memberVisibility, overriding = overriding)
+                check(TokenType.NATIVE) -> {
+                    val nativeStart = advance()
+                    parseFunctionDeclaration(name.text, memberVisibility, nativeStart)
+                }
+                !isObject && check(TokenType.IDENTIFIER) && current().text == name.text &&
+                    peek(1).type == TokenType.LPAREN ->
+                    parseConstructorDeclaration(name.text, memberVisibility)
                 else -> {
                     diagnostics.fail(
                         current().span,
@@ -79,13 +114,31 @@ class Parser(
         val end = expect(TokenType.RBRACE)
         val span = start.span.merge(end.span)
         return if (isObject) {
-            ObjectDeclaration(name.text, members, span)
+            ObjectDeclaration(name.text, members, span, visibility)
         } else {
-            ClassDeclaration(name.text, members, span)
+            ClassDeclaration(name.text, members, span, visibility, typeParameters, baseType)
         }
     }
 
-    private fun parseFieldDeclaration(keyword: Token): FieldDeclaration {
+    private fun parseConstructorDeclaration(
+        className: String,
+        visibility: Visibility
+    ): ConstructorDeclaration {
+        val start = expect(TokenType.IDENTIFIER)
+        expect(TokenType.LPAREN)
+        val parameters = parseParameters()
+        expect(TokenType.RPAREN)
+        val body = parseBlock()
+        return ConstructorDeclaration(
+            className,
+            parameters,
+            body,
+            start.span.merge(body.span),
+            visibility
+        )
+    }
+
+    private fun parseFieldDeclaration(keyword: Token, visibility: Visibility): FieldDeclaration {
         val name = expect(TokenType.IDENTIFIER)
         expect(TokenType.COLON)
         val type = parseTypeReference()
@@ -94,49 +147,71 @@ class Parser(
             keyword.type == TokenType.VAR,
             name.text,
             type,
-            keyword.span.merge(type.span)
+            keyword.span.merge(type.span),
+            visibility
         )
     }
 
-    private fun parseFunctionDeclaration(owner: String? = null): FunctionDeclaration {
-        val start = expect(TokenType.FUN)
+    private fun parseFunctionDeclaration(
+        owner: String? = null,
+        visibility: Visibility = Visibility.PUBLIC,
+        nativeStart: Token? = null,
+        overriding: Boolean = false
+    ): FunctionDeclaration {
+        val start = nativeStart ?: current()
+        expect(TokenType.FUN)
         val name = expect(TokenType.IDENTIFIER)
 
         expect(TokenType.LPAREN)
-        val parameters = mutableListOf<Parameter>()
-
-        if (!check(TokenType.RPAREN)) {
-            do {
-                val parameterName = expect(TokenType.IDENTIFIER)
-                expect(TokenType.COLON)
-                val type = parseTypeReference()
-
-                parameters += Parameter(
-                    parameterName.text,
-                    type,
-                    parameterName.span.merge(type.span)
-                )
-            } while (match(TokenType.COMMA))
-        }
-
+        val parameters = parseParameters()
         expect(TokenType.RPAREN)
-        expect(TokenType.COLON)
-        val returnType = parseTypeReference()
-        val body = parseBlock()
+        val returnType = if (match(TokenType.COLON)) parseTypeReference()
+            else TypeReference("Void", name.span)
+        val body = if (nativeStart == null) parseBlock() else null
+        val nativeTarget = if (nativeStart != null) {
+            expect(TokenType.EQUAL)
+            expect(TokenType.STRING).also { match(TokenType.SEMICOLON) }.text
+        } else null
+        val end = body?.span ?: previous().span
 
         return FunctionDeclaration(
             name.text,
             parameters,
             returnType,
             body,
-            start.span.merge(body.span),
-            owner
+            start.span.merge(end),
+            owner,
+            visibility,
+            nativeTarget,
+            overriding
         )
+    }
+
+    private fun parseParameters(): List<Parameter> {
+        val parameters = mutableListOf<Parameter>()
+        if (!check(TokenType.RPAREN)) {
+            do {
+                val name = expect(TokenType.IDENTIFIER)
+                expect(TokenType.COLON)
+                val type = parseTypeReference()
+                parameters += Parameter(name.text, type, name.span.merge(type.span))
+            } while (match(TokenType.COMMA))
+        }
+        return parameters
     }
 
     private fun parseTypeReference(): TypeReference {
         val token = expect(TokenType.IDENTIFIER)
-        return TypeReference(token.text, token.span)
+        val arguments = mutableListOf<TypeReference>()
+        if (match(TokenType.LESS)) {
+            do {
+                arguments += parseTypeReference()
+            } while (match(TokenType.COMMA))
+            expect(TokenType.GREATER)
+        }
+        val nullable = match(TokenType.QUESTION)
+        val end = previous().span
+        return TypeReference(token.text, token.span.merge(end), nullable, arguments)
     }
 
     private fun parseBlock(): BlockStatement {
@@ -158,7 +233,9 @@ class Parser(
 
         if (match(TokenType.RETURN)) {
             val start = previous()
-            val expression = parseExpression()
+            val expression = if (check(TokenType.RBRACE) || check(TokenType.SEMICOLON)) {
+                VoidLiteral(start.span)
+            } else parseExpression()
             match(TokenType.SEMICOLON)
             return ReturnStatement(expression, start.span.merge(expression.span))
         }
@@ -222,9 +299,7 @@ class Parser(
 
         val name = expect(TokenType.IDENTIFIER)
 
-        expect(TokenType.COLON)
-
-        val type = parseTypeReference()
+        val type = if (match(TokenType.COLON)) parseTypeReference() else null
 
         expect(TokenType.EQUAL)
 
@@ -240,7 +315,14 @@ class Parser(
         )
     }
 
-    private fun parseExpression(): Expression = parseComparison()
+    private fun parseExpression(): Expression = parseElvis()
+
+    private fun parseElvis(): Expression {
+        val expression = parseComparison()
+        if (!match(TokenType.ELVIS)) return expression
+        val fallback = parseElvis()
+        return ElvisExpression(expression, fallback, expression.span.merge(fallback.span))
+    }
 
     private fun parseComparison(): Expression {
         var expression = parseAdditive()
@@ -291,11 +373,11 @@ class Parser(
     }
 
     private fun parseMultiplicative(): Expression {
-        var expression = parseCall()
+        var expression = parseUnary()
 
         while (check(TokenType.STAR) || check(TokenType.SLASH)) {
             val operator = advance()
-            val right = parseCall()
+            val right = parseUnary()
 
             expression = BinaryExpression(
                 expression,
@@ -327,12 +409,14 @@ class Parser(
                     arguments,
                     expression.span.merge(end.span)
                 )
-            } else if (match(TokenType.DOT)) {
+            } else if (check(TokenType.DOT) || check(TokenType.SAFE_DOT)) {
+                val safe = advance().type == TokenType.SAFE_DOT
                 val name = expect(TokenType.IDENTIFIER)
                 expression = MemberAccessExpression(
                     expression,
                     name.text,
-                    expression.span.merge(name.span)
+                    expression.span.merge(name.span),
+                    safe
                 )
             } else {
                 break
@@ -342,10 +426,28 @@ class Parser(
         return expression
     }
 
+    private fun parseUnary(): Expression {
+        if (match(TokenType.MINUS)) {
+            val start = previous()
+            if (check(TokenType.INTEGER) && peek(1).type !in setOf(TokenType.DOT, TokenType.SAFE_DOT, TokenType.LPAREN)) {
+                val number = advance()
+                val value = ("-" + number.text).toIntOrNull()
+                    ?: diagnostics.fail(number.span, "integer literal is outside Int32 range")
+                return IntegerLiteral(value, start.span.merge(number.span))
+            }
+            val operand = parseUnary()
+            return BinaryExpression(IntegerLiteral(0, start.span), BinaryOperator.SUB, operand, start.span.merge(operand.span))
+        }
+        return parseCall()
+    }
+
     private fun parsePrimary(): Expression {
+        if (match(TokenType.TRUE)) return BooleanLiteral(true, previous().span)
+        if (match(TokenType.FALSE)) return BooleanLiteral(false, previous().span)
         if (match(TokenType.INTEGER)) {
             val token = previous()
-            return IntegerLiteral(token.text.toInt(), token.span)
+            return IntegerLiteral(token.text.toIntOrNull()
+                ?: diagnostics.fail(token.span, "integer literal is outside Int32 range"), token.span)
         }
 
         if (match(TokenType.STRING)) {
@@ -353,10 +455,18 @@ class Parser(
             return StringLiteral(token.text, token.span)
         }
 
+        if (match(TokenType.NULL)) return NullLiteral(previous().span)
+
+        if (match(TokenType.THIS)) {
+            val token = previous()
+            return NameExpression("this", token.span)
+        }
+
+        if (match(TokenType.SUPER)) return NameExpression("super", previous().span)
+
         if (match(TokenType.NEW)) {
             val start = previous()
-            val typeToken = expect(TokenType.IDENTIFIER)
-            val type = TypeReference(typeToken.text, typeToken.span)
+            val type = parseTypeReference()
             expect(TokenType.LPAREN)
             val arguments = mutableListOf<Expression>()
             if (!check(TokenType.RPAREN)) {
@@ -408,4 +518,11 @@ class Parser(
 
     private fun current(): Token = tokens[position]
     private fun previous(): Token = tokens[position - 1]
+
+    private fun parseVisibility(): Visibility = when {
+        match(TokenType.PRIVATE) -> Visibility.PRIVATE
+        match(TokenType.PROTECTED) -> Visibility.PROTECTED
+        match(TokenType.PUBLIC) -> Visibility.PUBLIC
+        else -> Visibility.PUBLIC
+    }
 }

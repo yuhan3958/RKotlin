@@ -1,0 +1,68 @@
+public class Int32 {
+    private native fun addValue(other: Int32): Int32 = "int.add";
+    private native fun subtractValue(other: Int32): Int32 = "int.subtract";
+    private native fun multiplyValue(other: Int32): Int32 = "int.multiply";
+    private native fun divideValue(other: Int32): Int32 = "int.divide";
+    private native fun remainderValue(other: Int32): Int32 = "int.remainder";
+    private native fun equalValue(other: Int32): Bool = "int.equal";
+    private native fun lessValue(other: Int32): Bool = "int.less";
+    private native fun formatValue(): String = "int.toString";
+
+    public fun plus(other: Int32): Int32 { return addValue(other) }
+    public fun minus(other: Int32): Int32 { return subtractValue(other) }
+    public fun times(other: Int32): Int32 { return multiplyValue(other) }
+    public fun div(other: Int32): Int32 { return divideValue(other) }
+    public fun rem(other: Int32): Int32 { return remainderValue(other) }
+    public fun equals(other: Int32): Bool { return equalValue(other) }
+    public fun notEquals(other: Int32): Bool { return equalValue(other).not() }
+    public fun lessThan(other: Int32): Bool { return lessValue(other) }
+    public fun lessOrEqual(other: Int32): Bool { return other.lessThan(this).not() }
+    public fun greaterThan(other: Int32): Bool { return other.lessThan(this) }
+    public fun greaterOrEqual(other: Int32): Bool { return lessValue(other).not() }
+    public fun toString(): String { return formatValue() }
+
+    public fun compareTo(other: Int32): Int32 {
+        if (lessThan(other)) { return 0 - 1 }
+        if (greaterThan(other)) { return 1 }
+        return 0
+    }
+
+    public fun abs(): Int32 {
+        if (this < 0) { return 0 - this }
+        return this
+    }
+
+    public fun sign(): Int32 { return compareTo(0) }
+    public fun isEven(): Bool { return rem(2) == 0 }
+    public fun isOdd(): Bool { return isEven().not() }
+
+    public fun min(other: Int32): Int32 {
+        if (this < other) { return this }
+        return other
+    }
+
+    public fun max(other: Int32): Int32 {
+        if (this > other) { return this }
+        return other
+    }
+
+    public fun coerceIn(minimum: Int32, maximum: Int32): Int32 {
+        require(minimum <= maximum, "minimum exceeds maximum")
+        return max(minimum).min(maximum)
+    }
+
+    public fun pow(exponent: Int32): Int32 {
+        require(exponent >= 0, "negative integer exponent")
+        var result = 1
+        var factor = this
+        var remaining = exponent
+        while (remaining > 0) {
+            if (remaining.isOdd()) { result = result * factor }
+            remaining = remaining / 2
+            if (remaining > 0) { factor = factor * factor }
+        }
+        return result
+    }
+
+    public native fun address(): Pointer<Int32> = "address";
+}

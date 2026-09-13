@@ -4,6 +4,9 @@ import me.rkt.source.SourceSpan
 
 sealed interface Expression : AstNode
 
+data class VoidLiteral(override val span: SourceSpan) : Expression
+data class BooleanLiteral(val value: Boolean, override val span: SourceSpan) : Expression
+
 data class IntegerLiteral(
     val value: Int,
     override val span: SourceSpan
@@ -13,6 +16,8 @@ data class StringLiteral(
     val value: String,
     override val span: SourceSpan
 ) : Expression
+
+data class NullLiteral(override val span: SourceSpan) : Expression
 
 data class NameExpression(
     val name: String,
@@ -28,8 +33,16 @@ data class NewExpression(
 data class MemberAccessExpression(
     val receiver: Expression,
     val name: String,
+    override val span: SourceSpan,
+    val safe: Boolean = false
+) : Expression
+
+data class ElvisExpression(
+    val nullable: Expression,
+    val fallback: Expression,
     override val span: SourceSpan
 ) : Expression
+
 
 data class CallExpression(
     val target: Expression,

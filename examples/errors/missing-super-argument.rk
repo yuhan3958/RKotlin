@@ -1,0 +1,4 @@
+// Expected semantic error: synthesized Child cannot call Parent without its required argument.
+class Parent { public Parent(value: Int) {} }
+class Child : Parent {}
+fun main(): Int { return 0 }

@@ -1,0 +1,4 @@
+// Expected semantic error: override must preserve the signature.
+class Parent { public fun value(): Int { return 1 } }
+class Child : Parent { public override fun value(): String { return "wrong" } }
+fun main(): Int { return 0 }

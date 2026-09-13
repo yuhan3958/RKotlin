@@ -1,0 +1,59 @@
+class Counter {
+    private var stored: Int;
+
+    public Counter(initial: Int) { stored = initial }
+
+    public fun getStored(): Int { return stored }
+    public fun setStored(value: Int): Void { stored = value }
+    protected fun step(): Int { return 1 }
+
+    public fun increment(): Void { stored = stored + step() }
+    public fun description(): String { return "Counter" }
+}
+
+class FastCounter : Counter {
+    public FastCounter(initial: Int) { super(initial) }
+    protected override fun step(): Int { return 2 }
+    public override fun description(): String { return super.description() + ":fast" }
+}
+
+class EmptyBase {
+    public fun answer(): Int { return 42 }
+}
+
+// Both constructors are synthesized; the parent constructor runs first.
+class EmptyChild : EmptyBase {
+}
+
+class TurboCounter : FastCounter {
+    public TurboCounter(initial: Int) { super(initial) }
+    protected override fun step(): Int { return 3 }
+}
+
+class ScalingCounter : Counter {
+    public ScalingCounter(initial: Int) { super(initial) }
+    public override fun getStored(): Int { return super.getStored() * 2 }
+    public override fun setStored(value: Int): Void { super.setStored(value / 2) }
+}
+
+fun bump(value: Counter): Counter { value.increment(); return value }
+fun kind(value: Counter): String { return "base" }
+fun kind(value: TurboCounter): String { return "turbo" }
+
+fun main(): Int {
+    val counter: Counter = new FastCounter(10)
+    counter.increment()
+    check(counter.stored == 12, "virtual step through a base receiver")
+    counter.stored = 20
+    check(counter.getStored() == 20, "property setter")
+    check(counter.description() == "Counter:fast", "super method call")
+    check(new EmptyChild().answer() == 42, "automatic constructors")
+    val turbo = new TurboCounter(4)
+    check(bump(turbo).stored == 7, "multiple inheritance levels and argument upcast")
+    check(kind(turbo) == "turbo", "most specific overload")
+    val scaled: Counter = new ScalingCounter(5)
+    scaled.stored = 20
+    check(scaled.stored == 20, "virtual property accessors")
+    println("inheritance: ok")
+    return 0
+}

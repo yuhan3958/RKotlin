@@ -1,0 +1,4 @@
+// Expected semantic error: replacing an inherited method requires override.
+class Parent { public fun value(): Int { return 1 } }
+class Child : Parent { public fun value(): Int { return 2 } }
+fun main(): Int { return 0 }

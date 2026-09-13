@@ -1,0 +1,4 @@
+// Expected semantic error: cyclic inheritance.
+class First : Second {}
+class Second : First {}
+fun main(): Int { return 0 }

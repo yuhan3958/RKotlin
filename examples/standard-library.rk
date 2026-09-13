@@ -1,0 +1,49 @@
+import rkotlin.Int
+import rkotlin.StringBuilder
+import rkotlin.IntList
+
+fun main(): Int {
+    val value: Int = new Int(-12)
+    check(value.abs() == 12, "absolute value")
+    check(value.sign() == -1, "sign")
+    check(3.pow(4) == 81, "power")
+    check(50.coerceIn(0, 10) == 10, "clamp")
+    check(7.rem(3) == 1, "remainder")
+    check(4.isEven().and(5.isOdd()), "boolean methods")
+    check(true.xor(false), "xor")
+    check(value.toString() == "-12", "integer formatting")
+
+    val text = "  안녕 RKotlin  ".trim()
+    check(text.length() == 10, "Unicode scalar length")
+    check(text.substring(0, 2) == "안녕", "Unicode substring")
+    check(text.startsWith("안녕"), "prefix")
+    check(text.endsWith("RKotlin"), "suffix")
+    check(text.contains("RK"), "contains")
+    check("ababa".replace("ab", "x") == "xxa", "replacement")
+    check("ha".repeat(3) == "hahaha", "repeat")
+    check("2147483647".toInt() == 2147483647, "maximum integer")
+    check("-2147483648".toInt() == -2147483648, "minimum integer")
+    check("2147483648".toIntOrNull() == null, "overflow rejected")
+    check("12x".toIntOrNull() == null, "invalid digits rejected")
+    check("\"quoted\"\\path\n".contains("\n"), "string escapes")
+
+    val builder = new StringBuilder()
+    builder.append("count=").appendInt(3).append(", ready=").appendBool(true)
+    check(builder.toString() == "count=3, ready=true", "builder")
+    builder.clear()
+    check(builder.isEmpty(), "builder clear")
+
+    val list = new IntList()
+    list.add(10)
+    list.add(20)
+    list.add(30)
+    list.set(1, 25)
+    check(list.get(1) == 25, "list set/get")
+    check(list.removeAt(1) == 25, "list remove")
+    check(list.size() == 2, "list size")
+    check(list.contains(30), "list contains")
+    list.clear()
+    check(list.isEmpty(), "list clear")
+    println("standard library: ok")
+    return 0
+}

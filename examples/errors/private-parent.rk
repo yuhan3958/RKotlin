@@ -1,0 +1,4 @@
+// Expected semantic error: a child cannot access its parent's private member.
+class Parent { private var secret: Int; }
+class Child : Parent { public fun reveal(): Int { return secret } }
+fun main(): Int { return 0 }

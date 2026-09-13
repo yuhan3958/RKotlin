@@ -38,6 +38,15 @@ class Lexer(
             c == '"' -> lexString(start)
 
             c == ':' -> simple(TokenType.COLON, start)
+            c == '?' && peek() == ':' -> {
+                position++
+                simple(TokenType.ELVIS, start)
+            }
+            c == '?' && peek() == '.' -> {
+                position++
+                simple(TokenType.SAFE_DOT, start)
+            }
+            c == '?' -> simple(TokenType.QUESTION, start)
             c == ',' -> simple(TokenType.COMMA, start)
             c == ';' -> simple(TokenType.SEMICOLON, start)
             c == '(' -> simple(TokenType.LPAREN, start)
@@ -102,6 +111,17 @@ class Lexer(
             "in" -> TokenType.IN
             "var" -> TokenType.VAR
             "val" -> TokenType.VAL
+            "public" -> TokenType.PUBLIC
+            "private" -> TokenType.PRIVATE
+            "protected" -> TokenType.PROTECTED
+            "override" -> TokenType.OVERRIDE
+            "super" -> TokenType.SUPER
+            "native" -> TokenType.NATIVE
+            "type" -> TokenType.TYPE
+            "null" -> TokenType.NULL
+            "this" -> TokenType.THIS
+            "true" -> TokenType.TRUE
+            "false" -> TokenType.FALSE
             else -> TokenType.IDENTIFIER
         }
 
@@ -118,12 +138,23 @@ class Lexer(
     }
 
     private fun lexString(start: Int): Token {
-        val valueStart = position
+        val value = StringBuilder()
         while (!isAtEnd() && peek() != '"') {
-            if (peek() == '\\' && position + 1 < source.content.length) {
-                position += 2
+            if (peek() == '\\') {
+                advance()
+                if (isAtEnd()) diagnostics.fail(SourceSpan(source, start, position), "unterminated escape")
+                value.append(when (val escaped = advance()) {
+                    'n' -> '\n'
+                    'r' -> '\r'
+                    't' -> '\t'
+                    '\\' -> '\\'
+                    '"' -> '"'
+                    else -> diagnostics.fail(SourceSpan(source, start, position), "unknown string escape '$escaped'")
+                })
             } else {
-                position++
+                val character = advance()
+                if (character == '\u0000') diagnostics.fail(SourceSpan(source, start, position), "NUL is not supported in String")
+                value.append(character)
             }
         }
         if (isAtEnd()) {
@@ -132,9 +163,8 @@ class Lexer(
                 "unterminated string literal"
             )
         }
-        val text = source.content.substring(valueStart, position)
         position++
-        return Token(TokenType.STRING, text, SourceSpan(source, start, position))
+        return Token(TokenType.STRING, value.toString(), SourceSpan(source, start, position))
     }
 
     private fun skipWhitespaceAndComments() {

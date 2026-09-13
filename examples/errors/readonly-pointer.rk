@@ -1,0 +1,7 @@
+// Expected semantic error: the address of a val is read-only.
+fun main(): Int {
+    val value = 1
+    val pointer = value.address()
+    pointer.write(2)
+    return 0
+}

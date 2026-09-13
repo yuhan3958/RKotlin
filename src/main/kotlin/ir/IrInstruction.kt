@@ -2,6 +2,10 @@ package me.rkt.ir
 
 sealed interface IrInstruction
 
+data class IrBoxInstruction(val result: IrRegister, val value: IrValue) : IrInstruction
+data class IrUnboxInstruction(val result: IrRegister, val value: IrValue) : IrInstruction
+data class IrCastInstruction(val result: IrRegister, val value: IrValue) : IrInstruction
+
 enum class IrBinaryOperator {
     ADD_I32,
     SUB_I32,
@@ -26,7 +30,8 @@ data class IrCallInstruction(
     val result: IrRegister?,
     val functionName: String,
     val arguments: List<IrValue>,
-    val returnType: IrType
+    val returnType: IrType,
+    val safe: Boolean = false
 ) : IrInstruction
 
 data class IrNewObjectInstruction(
@@ -34,7 +39,29 @@ data class IrNewObjectInstruction(
     val type: IrObjectType
 ) : IrInstruction
 
+data class IrSelectNonNullInstruction(
+    val result: IrRegister,
+    val nullable: IrValue,
+    val fallback: IrValue
+) : IrInstruction
+
+data class IrPointerLoadInstruction(val result: IrRegister, val pointer: IrValue) : IrInstruction
+data class IrAddressInstruction(val result: IrRegister, val local: IrLocal) : IrInstruction
+data class IrPointerStoreInstruction(val pointer: IrValue, val value: IrValue) : IrInstruction
+data class IrFreeInstruction(val pointer: IrValue) : IrInstruction
+data class IrManagedPointerInstruction(
+    val result: IrRegister,
+    val initializer: IrValue,
+    val pointeeType: IrType
+) : IrInstruction
+
 data class IrFieldLoadInstruction(
+    val result: IrRegister,
+    val receiver: IrValue,
+    val field: String
+) : IrInstruction
+
+data class IrSafeFieldLoadInstruction(
     val result: IrRegister,
     val receiver: IrValue,
     val field: String

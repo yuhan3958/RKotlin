@@ -1,0 +1,7 @@
+// Expected runtime failure: disposed pointer access. Do not run automatically.
+fun main(): Int {
+    val pointer = new Pointer<Int>(1)
+    val alias = pointer
+    pointer.free()
+    return alias.read()
+}

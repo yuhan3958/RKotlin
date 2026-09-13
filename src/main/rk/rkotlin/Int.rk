@@ -1,0 +1,5 @@
+import rkotlin.Int32
+
+// Int shares Int32's representation and inherits its methods.
+public class Int : Int32 {
+}

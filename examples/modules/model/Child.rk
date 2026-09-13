@@ -1,0 +1,6 @@
+import Parent
+
+class ImportedChild : ImportedParent {
+    public ImportedChild(value: Int) { super(value) }
+    public override fun score(): Int { return super.score() + 2 }
+}

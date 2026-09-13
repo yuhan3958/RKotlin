@@ -1,0 +1,58 @@
+class Probe {
+    public var calls: Int;
+    public fun next(): Int { calls = calls + 1; return calls }
+}
+
+fun escaped(): Pointer<Int> {
+    var value = 40
+    return value.address()
+}
+
+fun main(): Int {
+    val probe = new Probe()
+    val absent: Int? = null
+    val present: Int? = 0
+    check((absent?.plus(probe.next()) ?: 99) == 99, "null safe call")
+    check(probe.calls == 0, "safe call skips arguments")
+    check((present ?: probe.next()) == 0, "zero is not null")
+    check(probe.calls == 0, "Elvis skips fallback")
+    check((present?.plus(2) ?: 99) == 2, "safe scalar call")
+    val boolean: Bool? = false
+    check((boolean?.not() ?: false), "nullable Bool")
+    val absentProbe: Probe? = null
+    check((absentProbe?.calls ?: 9) == 9, "safe property")
+    val presentProbe: Probe? = probe
+    check((presentProbe?.calls ?: 9) == 0, "safe zero-valued property")
+
+    var sum = 0
+    for (index in 1..3) { sum = sum + index }
+    check(sum == 6, "inclusive range")
+    for (index in 2147483647..2147483647) { sum = sum + 1 }
+    check(sum == 7, "range avoids overflow at maximum integer")
+
+    var number = 10
+    val borrowed = number.address()
+    borrowed.write(20)
+    check(number == 20, "address aliases the variable")
+    borrowed.free()
+    check(number == 20, "freeing a borrowed handle keeps the variable")
+
+    val owned = new Pointer<Int>(30)
+    owned.write(owned.read() + 2)
+    check(owned.read() == 32, "owned pointer read/write")
+    owned.free()
+    check(owned.isFreed(), "disposed state")
+
+    var text = "before"
+    val textPointer = text.address()
+    textPointer.write("after")
+    check(text == "after", "String address")
+    textPointer.free()
+
+    val retained = escaped()
+    retained.write(42)
+    check(retained.read() == 42, "escaped local storage")
+    retained.free()
+    println("nullable and pointer: ok")
+    return 0
+}

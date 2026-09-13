@@ -1,0 +1,18 @@
+public class StringBuilder {
+    private var text: String;
+
+    public StringBuilder() { text = "" }
+
+    public fun append(value: String): StringBuilder {
+        text = text + value
+        return this
+    }
+
+    public fun appendInt(value: Int): StringBuilder { return append(value.toString()) }
+    public fun appendBool(value: Bool): StringBuilder { return append(value.toString()) }
+    public fun appendLine(value: String): StringBuilder { return append(value).append("\n") }
+    public fun length(): Int { return text.length() }
+    public fun isEmpty(): Bool { return text.isEmpty() }
+    public fun clear(): Void { text = "" }
+    public fun toString(): String { return text }
+}

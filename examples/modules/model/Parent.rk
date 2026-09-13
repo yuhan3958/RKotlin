@@ -1,0 +1,5 @@
+class ImportedParent {
+    public var value: Int;
+    public ImportedParent(value: Int) { this.value = value }
+    public fun score(): Int { return value }
+}

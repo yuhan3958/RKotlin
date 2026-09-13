@@ -17,7 +17,7 @@ data class ReturnStatement(
 data class VariableDeclarationStatement(
     val mutable: Boolean,
     val name: String,
-    val type: TypeReference,
+    val type: TypeReference?,
     val initializer: Expression,
     override val span: SourceSpan
 ) : Statement

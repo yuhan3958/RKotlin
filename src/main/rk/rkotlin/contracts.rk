@@ -1,0 +1,9 @@
+private native fun failValue(message: String): Void = "panic";
+
+public fun require(condition: Bool, message: String): Void {
+    if (condition.not()) { failValue(message) }
+}
+
+public fun check(condition: Bool, message: String): Void {
+    require(condition, message)
+}

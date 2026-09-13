@@ -13,6 +13,18 @@ enum class TokenType {
     FOR,
     IN,
 
+    PUBLIC,
+    PRIVATE,
+    PROTECTED,
+    OVERRIDE,
+    SUPER,
+    NATIVE,
+    TYPE,
+    NULL,
+    THIS,
+    TRUE,
+    FALSE,
+
     IDENTIFIER,
     INTEGER,
     STRING,
@@ -21,6 +33,9 @@ enum class TokenType {
     COMMA,
     SEMICOLON,
     DOT,
+    SAFE_DOT,
+    QUESTION,
+    ELVIS,
 
     LPAREN,
     RPAREN,

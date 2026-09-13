@@ -18,6 +18,10 @@ kotlin {
     jvmToolchain(21)
 }
 
+sourceSets.main {
+    resources.srcDir("src/main/rk")
+}
+
 tasks.test {
     useJUnitPlatform()
 }

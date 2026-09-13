@@ -1,0 +1,74 @@
+private class IntListNode {
+    public var value: Int;
+    public var next: IntListNode?;
+
+    public IntListNode(value: Int) {
+        this.value = value
+        next = null
+    }
+}
+
+public class IntList {
+    private var head: IntListNode?;
+    private var tail: IntListNode?;
+    private var count: Int;
+
+    public IntList() { head = null; tail = null; count = 0 }
+
+    public fun size(): Int { return count }
+    public fun isEmpty(): Bool { return count == 0 }
+
+    public fun add(value: Int): Void {
+        val node = new IntListNode(value)
+        if (count == 0) {
+            head = node
+        } else {
+            val previous = tail ?: node
+            previous.next = node
+        }
+        tail = node
+        count = count + 1
+    }
+
+    private fun nodeAt(index: Int): IntListNode {
+        require(index >= 0, "negative list index")
+        require(index < count, "list index out of bounds")
+        // require terminates before the fallback can be reached.
+        var node = head ?: new IntListNode(0)
+        var position = 0
+        while (position < index) {
+            node = node.next ?: node
+            position = position + 1
+        }
+        return node
+    }
+
+    public fun get(index: Int): Int { return nodeAt(index).value }
+    public fun set(index: Int, value: Int): Void { nodeAt(index).value = value }
+
+    public fun removeAt(index: Int): Int {
+        val removed = nodeAt(index)
+        if (index == 0) {
+            head = removed.next
+        } else {
+            val previous = nodeAt(index - 1)
+            previous.next = removed.next
+            if (index == count - 1) { tail = previous }
+        }
+        count = count - 1
+        if (count == 0) { tail = null }
+        return removed.value
+    }
+
+    public fun indexOf(value: Int): Int {
+        var index = 0
+        while (index < count) {
+            if (get(index) == value) { return index }
+            index = index + 1
+        }
+        return 0 - 1
+    }
+
+    public fun contains(value: Int): Bool { return indexOf(value) >= 0 }
+    public fun clear(): Void { head = null; tail = null; count = 0 }
+}

@@ -1,0 +1,134 @@
+public class String {
+    public native fun address(): Pointer<String> = "address";
+    private native fun countValue(): Int = "string.length";
+    private native fun codeValue(index: Int): Int = "string.codeAt";
+    private native fun sliceValue(start: Int, end: Int): String = "string.slice";
+    private native fun joinValue(other: String): String = "string.concat";
+    private native fun compareValue(other: String): Int = "string.compare";
+
+    // Indexes count Unicode scalar values; end is exclusive.
+    public fun length(): Int { return countValue() }
+    public fun codeAt(index: Int): Int { return codeValue(index) }
+    public fun substring(start: Int, end: Int): String { return sliceValue(start, end) }
+    public fun plus(other: String): String { return joinValue(other) }
+    public fun compareTo(other: String): Int { return compareValue(other) }
+    public fun equals(other: String): Bool { return compareTo(other) == 0 }
+    public fun notEquals(other: String): Bool { return equals(other).not() }
+    public fun lessThan(other: String): Bool { return compareTo(other) < 0 }
+    public fun lessOrEqual(other: String): Bool { return compareTo(other) <= 0 }
+    public fun greaterThan(other: String): Bool { return compareTo(other) > 0 }
+    public fun greaterOrEqual(other: String): Bool { return compareTo(other) >= 0 }
+    public fun isEmpty(): Bool { return length() == 0 }
+    public fun isNotEmpty(): Bool { return isEmpty().not() }
+    public fun toString(): String { return this }
+
+    public fun startsWith(prefix: String): Bool {
+        if (prefix.length() > length()) { return false }
+        return substring(0, prefix.length()) == prefix
+    }
+
+    public fun endsWith(suffix: String): Bool {
+        if (suffix.length() > length()) { return false }
+        return substring(length() - suffix.length(), length()) == suffix
+    }
+
+    public fun indexOf(part: String): Int {
+        var index = 0
+        val limit = length() - part.length()
+        while (index <= limit) {
+            if (substring(index, index + part.length()) == part) { return index }
+            index = index + 1
+        }
+        return 0 - 1
+    }
+
+    public fun contains(part: String): Bool { return indexOf(part) >= 0 }
+
+    public fun replace(old: String, replacement: String): String {
+        require(old.isNotEmpty(), "replacement pattern must not be empty")
+        var result = ""
+        var index = 0
+        while (index < length()) {
+            var matched = false
+            if (index + old.length() <= length()) {
+                matched = substring(index, index + old.length()) == old
+            }
+            if (matched) {
+                result = result + replacement
+                index = index + old.length()
+            } else {
+                result = result + substring(index, index + 1)
+                index = index + 1
+            }
+        }
+        return result
+    }
+
+    private fun isWhitespace(index: Int): Bool {
+        val code = codeAt(index)
+        if (code == 32) { return true }
+        if (code >= 9) { return code <= 13 }
+        return false
+    }
+
+    public fun trim(): String {
+        var start = 0
+        val end = length()
+        while (start < end) {
+            if (isWhitespace(start).not()) { return substring(start, end).trimEnd() }
+            start = start + 1
+        }
+        return ""
+    }
+
+    public fun trimEnd(): String {
+        var end = length()
+        while (end > 0) {
+            if (isWhitespace(end - 1).not()) { return substring(0, end) }
+            end = end - 1
+        }
+        return ""
+    }
+
+    public fun repeat(count: Int): String {
+        require(count >= 0, "negative repeat count")
+        var result = ""
+        var index = 0
+        while (index < count) {
+            result = result + this
+            index = index + 1
+        }
+        return result
+    }
+
+    public fun toIntOrNull(): Int? {
+        if (isEmpty()) { return null }
+        var index = 0
+        var negative = false
+        if (codeAt(0) == 45) { negative = true; index = 1 }
+        if (codeAt(0) == 43) { index = 1 }
+        if (index == length()) { return null }
+        var limit = 0 - 2147483647
+        if (negative) { limit = limit - 1 }
+        val threshold = limit / 10
+        var result = 0
+        while (index < length()) {
+            val digit = codeAt(index) - 48
+            if (digit < 0) { return null }
+            if (digit > 9) { return null }
+            if (result < threshold) { return null }
+            result = result * 10
+            if (result < limit + digit) { return null }
+            result = result - digit
+            index = index + 1
+        }
+        if (negative) { return result }
+        return 0 - result
+    }
+
+    public fun toInt(): Int {
+        val parsed = toIntOrNull()
+        require(parsed != null, "invalid or out-of-range integer")
+        return parsed ?: 0
+    }
+}

@@ -1,0 +1,15 @@
+import rkotlin.Int
+import model.Child
+import model.Parent
+import cycle.A
+
+// Int is explicitly imported here and also imported through rkotlin.core.
+// Parent is reached both directly and through Child. Each implementation is included once.
+fun main(): Int {
+    val item: ImportedParent = new ImportedChild(5)
+    check(item.value == 5, "accessor belongs to Parent.c")
+    check(item.score() == 7, "dispatch across Parent.c and Child.c")
+    check(cycleA(4) == 4, "cyclic module imports")
+    println("modules: ok")
+    return 0
+}

@@ -1,0 +1,6 @@
+public class Pointer<T> {
+    public native fun read(): T = "pointer.read";
+    public native fun write(value: T): Void = "pointer.write";
+    public native fun free(): Void = "pointer.free";
+    public native fun isFreed(): Bool = "pointer.isFreed";
+}

@@ -1,5 +1,8 @@
 package me.rkt.semantic
 
+import me.rkt.ast.Visibility
+import me.rkt.source.SourceSpan
+
 sealed interface Symbol {
     val name: String
 }
@@ -15,7 +18,7 @@ data class ParameterSymbol(
     override val mutable: Boolean = false
 ) : ValueSymbol
 
-data class VariableSymbol(
+class VariableSymbol(
     override val name: String,
     override val type: RType,
     override val mutable: Boolean
@@ -24,14 +27,20 @@ data class VariableSymbol(
 data class FieldSymbol(
     override val name: String,
     override val type: RType,
-    override val mutable: Boolean
+    override val mutable: Boolean,
+    val visibility: Visibility = Visibility.PUBLIC,
+    val ownerName: String = ""
 ) : ValueSymbol
 
-data class ClassSymbol(
+class ClassSymbol(
     override val name: String,
     val type: ClassType,
     val fields: LinkedHashMap<String, FieldSymbol> = linkedMapOf(),
-    val methods: LinkedHashMap<String, FunctionSymbol> = linkedMapOf()
+    val methods: LinkedHashMap<String, FunctionSymbol> = linkedMapOf(),
+    var constructor: FunctionSymbol? = null,
+    val visibility: Visibility = Visibility.PUBLIC,
+    val declarationSpan: SourceSpan? = null,
+    var baseClass: ClassSymbol? = null
 ) : Symbol
 
 data class FunctionSymbol(
@@ -39,8 +48,13 @@ data class FunctionSymbol(
     val parameters: List<ParameterSymbol>,
     val returnType: RType,
     val builtinTarget: String? = null,
-    val owner: ClassSymbol? = null
+    val owner: ClassSymbol? = null,
+    val visibility: Visibility = Visibility.PUBLIC,
+    val declarationSpan: SourceSpan? = null,
+    val synthetic: Boolean = false,
+    val overriding: Boolean = false
 ) : Symbol
 
 val FunctionSymbol.generatedName: String
-    get() = owner?.let { "${it.name}_$name" } ?: name
+    get() = owner?.let { "${it.name}_$name" }
+        ?: if (parameters.isEmpty()) name else name + "_" + parameters.joinToString("_") { it.type.displayName }

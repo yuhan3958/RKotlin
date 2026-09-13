@@ -1,0 +1,6 @@
+import B
+
+public fun cycleA(value: Int): Int {
+    if (value == 0) { return 0 }
+    return cycleB(value - 1) + 1
+}
