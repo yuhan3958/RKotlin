@@ -1,0 +1,3 @@
+public interface Iterable<T> {
+    public fun iterator(): Iterator<T>;
+}

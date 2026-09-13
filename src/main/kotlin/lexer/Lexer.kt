@@ -112,6 +112,7 @@ class Lexer(
         val type = when (text) {
             "import" -> TokenType.IMPORT
             "class" -> TokenType.CLASS
+            "interface" -> TokenType.INTERFACE
             "object" -> TokenType.OBJECT
             "new" -> TokenType.NEW
             "fun" -> TokenType.FUN

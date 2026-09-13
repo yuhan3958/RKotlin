@@ -6,6 +6,9 @@ import rkotlin.Void
 import rkotlin.Unit
 import rkotlin.Pointer
 import rkotlin.BufferPointer
+import rkotlin.Iterator
+import rkotlin.Iterable
+import rkotlin.Array
 import rkotlin.io
 import rkotlin.Bool
 import rkotlin.contracts

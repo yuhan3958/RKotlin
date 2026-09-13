@@ -3,6 +3,7 @@ package me.rkt.lexer
 enum class TokenType {
     IMPORT,
     CLASS,
+    INTERFACE,
     OBJECT,
     NEW,
     FUN,

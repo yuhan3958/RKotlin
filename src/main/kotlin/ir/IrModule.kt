@@ -19,7 +19,9 @@ data class IrClass(
     val objectLike: Boolean = false,
     val baseName: String? = null,
     val methods: List<IrMethod> = emptyList(),
-    val sourcePath: String = ""
+    val sourcePath: String = "",
+    val isInterface: Boolean = false,
+    val interfaceNames: List<String> = emptyList()
 )
 
 data class IrMethod(
@@ -27,7 +29,8 @@ data class IrMethod(
     val functionName: String,
     val ownerName: String,
     val parameters: List<IrType>,
-    val returnType: IrType
+    val returnType: IrType,
+    val virtual: Boolean = true
 )
 
 data class IrField(

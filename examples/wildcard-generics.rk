@@ -1,0 +1,48 @@
+import rkotlin.Array
+
+interface Tagged<T> {
+    public fun tag(): String;
+}
+
+class Pair<A, B> : Tagged<A> {
+    private val first: A
+    private val second: B
+
+    public Pair(first: A, second: B) {
+        this.first = first
+        this.second = second
+    }
+
+    public override fun tag(): String { return "pair" }
+    public fun right(): B { return second }
+}
+
+fun length(values: Array<*>): Int32 {
+    return values.length()
+}
+
+fun keep(value: Tagged<*>): Tagged<*> {
+    return value
+}
+
+fun main() {
+    val numbers: Array<*> = arrayOf(1, 2)
+    val strings: Array<*> = arrayOf("one", "two", "three")
+    require(length(numbers) == 2, "integer array view")
+    require(length(strings) == 3, "string array view")
+    require(strings.iterator().hasNext(), "iterator wildcard result")
+
+    var pair: Pair<*, String> = new Pair<Int32, String>(1, "first")
+    require(pair.right() == "first", "known type argument remains readable")
+    pair = new Pair<Bool, String>(true, "second")
+    require(pair.right() == "second", "dispatch after reassignment")
+    require(keep(pair).tag() == "pair", "wildcard interface")
+
+    val nested: Array<Array<*>> = arrayOf(numbers, strings)
+    require(nested[0].length() == 2, "nested wildcard type")
+
+    // Rejected: strings[0]                  (unknown result type)
+    // Rejected: strings.set(0, "changed")   (unknown input type)
+    // Rejected: new Pair<*, String>(1, "x") (unknown construction type)
+    // Rejected: val typed: Array<String> = strings (no implicit downcast)
+}

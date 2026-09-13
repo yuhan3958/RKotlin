@@ -40,7 +40,11 @@ class ClassSymbol(
     var constructor: FunctionSymbol? = null,
     val visibility: Visibility = Visibility.PUBLIC,
     val declarationSpan: SourceSpan? = null,
-    var baseClass: ClassSymbol? = null
+    var baseClass: ClassSymbol? = null,
+    val interfaces: MutableList<ClassSymbol> = mutableListOf(),
+    val isInterface: Boolean = false,
+    val typeParameters: List<String> = emptyList(),
+    val interfaceTypes: MutableList<ClassType> = mutableListOf()
 ) : Symbol
 
 data class FunctionSymbol(
@@ -52,7 +56,8 @@ data class FunctionSymbol(
     val visibility: Visibility = Visibility.PUBLIC,
     val declarationSpan: SourceSpan? = null,
     val synthetic: Boolean = false,
-    val overriding: Boolean = false
+    val overriding: Boolean = false,
+    val unavailableParameters: Set<Int> = emptySet()
 ) : Symbol
 
 val FunctionSymbol.generatedName: String

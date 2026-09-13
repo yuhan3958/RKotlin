@@ -19,6 +19,7 @@ class SemanticAnalyzer(
         val boundFunctions = binder.bind(module)
 
         context.diagnostics.throwIfErrors()
-        return SemanticModule(boundFunctions, context.classes.values.toList(), module.imports)
+        return GenericSpecialization(context.diagnostics).specialize(
+            SemanticModule(boundFunctions, context.classes.values.toList(), module.imports))
     }
 }

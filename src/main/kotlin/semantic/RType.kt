@@ -22,7 +22,8 @@ data object StringType : RType {
 
 data object NullType : RType { override val displayName: String = "null" }
 
-data object PointerWildcardType : RType { override val displayName: String = "*" }
+/** An unknown generic argument, including an unknown pointer pointee. */
+data object WildcardType : RType { override val displayName: String = "*" }
 
 data class NullableType(val underlying: RType) : RType {
     override val displayName: String = "${underlying.displayName}?"
@@ -44,7 +45,8 @@ data class ManagedPointerType(
 data class ClassType(
     val name: String,
     val objectLike: Boolean = false,
-    val typeArguments: List<RType> = emptyList()
+    val typeArguments: List<RType> = emptyList(),
+    val typeParameter: Boolean = false
 ) : RType {
     override val displayName: String = if (typeArguments.isEmpty()) {
         name

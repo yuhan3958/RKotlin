@@ -1,0 +1,45 @@
+import rkotlin.Array
+
+interface Reader<E> {
+    public fun read(): E;
+}
+
+class Box<T> : Reader<T> {
+    private val value: T
+
+    public Box(value: T) {
+        this.value = value
+    }
+
+    public override fun read(): T {
+        return value
+    }
+}
+
+fun main() {
+    val integers = arrayOf(10, 20)
+    val strings = arrayOf("first", "second")
+    val flags = arrayOf(true, false)
+    val objects = arrayOf(new Box<String>("boxed"))
+
+    require(integers.iterator().next() == 10, "integer iterator")
+    val first = strings.iterator()
+    val second = strings.iterator()
+    require(first.next() == "first", "first string")
+    require(first.next() == "second", "second string")
+    require(second.next() == "first", "independent iterator")
+    require(flags.iterator().next(), "boolean iterator")
+    require(objects.iterator().next().read() == "boxed", "object iterator")
+    val reader: Reader<String> = new Box<String>("interface")
+    require(reader.read() == "interface", "interface type substitution")
+    val nested = arrayOf(strings)
+    require(nested.iterator().next().iterator().next() == "first", "nested type arguments")
+
+    val allocated = new Array<String>(2)
+    allocated[0] = "allocated"
+    allocated[1] = "array"
+    require(allocated.iterator().next() == "allocated", "generic constructor")
+    for (value in strings) {
+        println(value)
+    }
+}

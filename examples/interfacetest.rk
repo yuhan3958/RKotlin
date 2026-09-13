@@ -1,0 +1,14 @@
+interface Printable {
+    fun print(): Void;
+}
+
+class Document : Printable {
+    public override fun print(): Void {
+        println("document");
+    }
+}
+
+fun main() {
+    var doc = new Document();
+    doc.print();
+}

@@ -19,22 +19,24 @@ class SemanticTypeResolver(
                 diagnostics.fail(type.span, "type '${type.name}' is private")
             }
             if (type.arguments.isEmpty()) {
+                if (symbol.typeParameters.isNotEmpty()) {
+                    diagnostics.fail(type.span, "type '${type.name}' requires ${symbol.typeParameters.size} type arguments")
+                }
                 symbol.type
             } else {
-                if (symbol.name != "Array" || type.arguments.size != 1) {
+                if (type.arguments.size != symbol.typeParameters.size) {
                     diagnostics.fail(type.span, "type '${type.name}' does not accept these type arguments")
                 }
-                val argument = type.arguments.single()
                 ClassType(
                     symbol.name,
                     symbol.type.objectLike,
-                    listOf(
+                    type.arguments.map { argument ->
                         if (argument.name == "*" && argument.arguments.isEmpty() && !argument.nullable) {
-                            PointerWildcardType
+                            WildcardType
                         } else {
                             resolveType(argument)
                         }
-                    )
+                    }
                 )
             }
         } ?: diagnostics.fail(type.span, "unknown type '${type.name}'")
@@ -47,7 +49,7 @@ class SemanticTypeResolver(
             }
             val argument = type.arguments.single()
             val pointee = if (argument.name == "*" && argument.arguments.isEmpty() && !argument.nullable) {
-                PointerWildcardType
+                WildcardType
             } else {
                 resolveType(argument)
             }
@@ -62,17 +64,13 @@ class SemanticTypeResolver(
             )
         }
         else -> {
-            if (type.arguments.isNotEmpty() && type.name != "Array") {
+            if (type.arguments.isNotEmpty() && (type.name !in classes || type.name in nativeTypes)) {
                 diagnostics.fail(type.span, "type '${type.name}' does not accept type arguments")
             }
-            if (type.name == "Array" && type.arguments.size == 1 &&
-                type.arguments.single().name == "*" &&
-                type.arguments.single().arguments.isEmpty() &&
-                !type.arguments.single().nullable
-            ) {
-                ClassType("Array", classes.getValue("Array").type.objectLike, listOf(PointerWildcardType))
+            nativeTypes[type.name] ?: if (type.name in typeParameters) {
+                ClassType(type.name, typeParameter = true)
             } else {
-                nativeTypes[type.name] ?: if (type.name in typeParameters) ClassType(type.name) else resolveClassType(type)
+                resolveClassType(type)
             }
         }
     }.let { base ->

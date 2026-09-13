@@ -17,7 +17,6 @@ class SemanticRegistration(
         get() = context.typeParameters
         set(value) { context.typeParameters = value }
     private val libraryRoot get() = context.libraryRoot
-    private fun resolveClassType(type: TypeReference) = typeResolver.resolveClassType(type)
     private fun resolveType(type: TypeReference) = typeResolver.resolveType(type)
 
     fun registerDeclarations(module: AstModule) {
@@ -28,7 +27,7 @@ class SemanticRegistration(
 
     fun complete(module: AstModule) {
         registerAccessors()
-        registerInheritance(module)
+        SemanticInheritance(context, typeResolver).registerInheritance(module)
     }
 
     private fun registerNativeTypes(module: AstModule) {
@@ -58,17 +57,16 @@ class SemanticRegistration(
                 if (declaration.name == "Pointer" && !declaration.span.source.path.toAbsolutePath().normalize().startsWith(libraryRoot)) {
                     diagnostics.fail(declaration.span, "Pointer is defined by the standard library")
                 }
-                if (declaration.typeParameters.isNotEmpty() &&
-                    declaration.name !in setOf("Pointer", "BufferPointer", "Array")) {
-                    diagnostics.fail(declaration.span, "generic class declarations are not yet supported")
-                }
             }
             val name = when (declaration) {
                 is ClassDeclaration -> declaration.name
                 is ObjectDeclaration -> declaration.name
                 else -> error("not a type declaration")
             }
-            val type = ClassType(name, declaration is ObjectDeclaration)
+            val type = ClassType(name, declaration is ObjectDeclaration,
+                (declaration as? ClassDeclaration)?.typeParameters.orEmpty().map {
+                    ClassType(it, typeParameter = true)
+                })
             val visibility = when (declaration) {
                 is ClassDeclaration -> declaration.visibility
                 is ObjectDeclaration -> declaration.visibility
@@ -78,7 +76,9 @@ class SemanticRegistration(
                 name,
                 type,
                 visibility = visibility,
-                declarationSpan = declaration.span
+                declarationSpan = declaration.span,
+                isInterface = declaration is ClassDeclaration && declaration.isInterface,
+                typeParameters = (declaration as? ClassDeclaration)?.typeParameters.orEmpty()
             )
             if (!globalScope.define(symbol)) {
                 diagnostics.error(declaration.span, "duplicate declaration '$name'")
@@ -178,11 +178,7 @@ class SemanticRegistration(
             diagnostics.error(declaration.span, "duplicate constructor '${owner.name}'")
             return
         }
-        typeParameters = if (owner.name in setOf("Pointer", "BufferPointer", "Array")) {
-            setOf("T")
-        } else {
-            emptySet()
-        }
+        typeParameters = owner.typeParameters.toSet()
         val symbol = FunctionSymbol(
             "constructor",
             declaration.parameters.map { ParameterSymbol(it.name, resolveType(it.type)) },
@@ -197,84 +193,11 @@ class SemanticRegistration(
         constructors[declaration] = symbol
     }
 
-    private fun registerInheritance(module: AstModule) {
-        for (declaration in module.declarations.filterIsInstance<ClassDeclaration>()) {
-            val baseType = declaration.baseType ?: continue
-            val owner = classes.getValue(declaration.name)
-            val base = classes[baseType.name] ?: diagnostics.fail(baseType.span, "unknown superclass '${baseType.name}'")
-            resolveClassType(baseType)
-            val scalarAlias = owner.name == "Int" && base.name == "Int32"
-            if (baseType.nullable || baseType.arguments.isNotEmpty() || base.type.objectLike ||
-                (!scalarAlias && base.name != "Type" && (base.name in nativeTypes || owner.name in nativeTypes)) ||
-                base.name == "Pointer" || (owner.name == "Pointer" && base.name != "Type")) {
-                diagnostics.fail(baseType.span, "superclass must be an ordinary non-generic class")
-            }
-            owner.baseClass = base
-        }
-        val root = classes["Type"]
-        if (root != null) {
-            classes.values
-                .filter { it !== root && it.baseClass == null }
-                .forEach { it.baseClass = root }
-        }
-        val visiting = mutableSetOf<String>()
-        val complete = mutableSetOf<String>()
-        fun inherit(owner: ClassSymbol) {
-            if (owner.name in complete) return
-            if (!visiting.add(owner.name)) diagnostics.fail(owner.declarationSpan!!, "cyclic inheritance involving '${owner.name}'")
-            owner.baseClass?.let { base ->
-                inherit(base)
-                for ((name, field) in base.fields) {
-                    if (name in owner.fields) diagnostics.fail(owner.declarationSpan!!, "inherited field '$name' cannot be redeclared")
-                    owner.fields[name] = field
-                }
-                for ((name, inherited) in base.methods) {
-                    val method = owner.methods[name]
-                    if (method == null) {
-                        owner.methods[name] = inherited
-                    } else {
-                        if (inherited.visibility == Visibility.PRIVATE || !method.overriding) {
-                            diagnostics.fail(method.declarationSpan ?: owner.declarationSpan!!, "method '$name' requires an accessible superclass method and override")
-                        }
-                        if (method.parameters.map { it.type } != inherited.parameters.map { it.type } ||
-                            !isCovariantOverrideReturn(method.returnType, inherited.returnType)) {
-                            diagnostics.fail(method.declarationSpan!!, "override '$name' must preserve the method signature")
-                        }
-                        if (method.visibility.ordinal > inherited.visibility.ordinal) {
-                            diagnostics.fail(method.declarationSpan!!, "override '$name' cannot reduce visibility")
-                        }
-                    }
-                }
-                if (owner.constructor?.synthetic == true && (base.constructor?.parameters?.isNotEmpty() == true ||
-                        base.constructor?.visibility == Visibility.PRIVATE)) {
-                    diagnostics.fail(owner.declarationSpan!!, "declare a constructor calling an accessible superclass constructor")
-                }
-            }
-            for (method in owner.methods.values.filter { it.owner === owner && it.overriding }) {
-                if (owner.baseClass?.methods?.containsKey(method.name) != true) {
-                    diagnostics.fail(method.declarationSpan!!, "nothing to override: '${method.name}'")
-                }
-            }
-            visiting.remove(owner.name)
-            complete.add(owner.name)
-        }
-        classes.values.forEach(::inherit)
-    }
-
-    private fun isCovariantOverrideReturn(actual: RType, inherited: RType): Boolean {
-        if (actual == inherited) return true
-        return inherited is ManagedPointerType &&
-            inherited.kind == ManagedPointerKind.POINTER &&
-            inherited.pointee == PointerWildcardType &&
-            actual is ManagedPointerType
-    }
-
-
     private fun registerFunction(
         declaration: FunctionDeclaration,
         owner: ClassSymbol?
     ) {
-        typeParameters = if (owner?.name in setOf("Pointer", "BufferPointer", "Array")) setOf("T") else emptySet()
+        typeParameters = owner?.typeParameters?.toSet().orEmpty()
         declaration.nativeTarget?.let { target ->
             if (!declaration.span.source.path.toAbsolutePath().normalize().startsWith(libraryRoot)) {
                 diagnostics.fail(declaration.span, "intrinsics are restricted to the standard library")

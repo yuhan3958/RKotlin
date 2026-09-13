@@ -1,0 +1,21 @@
+class ArrayIterator<T> : Iterator<T> {
+    private val array: Array<T>;
+    private var index: Int32;
+
+    public ArrayIterator(array: Array<T>) {
+        this.array = array
+        this.index = 0
+    }
+
+    public override fun hasNext(): Bool {
+        return index < array.length()
+    }
+
+    public override fun next(): T {
+        require(hasNext(), "iterator has no next element")
+
+        val value = array[index]
+        index = index + 1
+        return value
+    }
+}

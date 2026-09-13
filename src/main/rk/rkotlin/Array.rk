@@ -1,11 +1,15 @@
-public class Array<T> {
+import rkotlin.ArrayIterator
+
+public class Array<T> : Iterable<T>, Iterator<T> {
     private var data: BufferPointer<T>;
     private var count: Int32;
+    private var iterationIndex: Int32;
 
     public Array(size: Int32) {
         require(size > 0, "array size must be positive");
 
         count = size;
+        iterationIndex = 0;
         data = alloc<T>(size);
     }
 
@@ -33,6 +37,21 @@ public class Array<T> {
         require(index < count, "array index out of bounds");
 
         (data + index).write(value);
+    }
+
+    public fun iterator(): Iterator<T> {
+        return new ArrayIterator<T>(this)
+    }
+
+    public fun hasNext(): Bool {
+        return iterationIndex < count;
+    }
+
+    public fun next(): T {
+        require(hasNext(), "iterator has no next element");
+        val value = get(iterationIndex);
+        iterationIndex = iterationIndex + 1;
+        return value;
     }
 
     public native fun toString(): String = "array.toString";

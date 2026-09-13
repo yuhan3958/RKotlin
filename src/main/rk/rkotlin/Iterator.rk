@@ -1,0 +1,4 @@
+public interface Iterator<T> {
+    public fun hasNext(): Bool;
+    public fun next(): T;
+}

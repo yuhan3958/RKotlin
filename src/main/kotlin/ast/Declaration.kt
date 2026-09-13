@@ -60,7 +60,9 @@ data class ClassDeclaration(
     override val span: SourceSpan,
     val visibility: Visibility = Visibility.PUBLIC,
     val typeParameters: List<String> = emptyList(),
-    val baseType: TypeReference? = null
+    val baseType: TypeReference? = null,
+    val interfaceTypes: List<TypeReference> = emptyList(),
+    val isInterface: Boolean = false
 ) : Declaration
 
 data class ObjectDeclaration(

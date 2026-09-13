@@ -58,5 +58,8 @@ data class BoundForStatement(
     override val span: SourceSpan,
     val iterable: BoundExpression? = null,
     val indexSymbol: VariableSymbol? = null,
-    val elementAccess: BoundExpression? = null
+    val elementAccess: BoundExpression? = null,
+    val iteratorCondition: BoundExpression? = null,
+    val iteratorSymbol: VariableSymbol? = null,
+    val iteratorInitializer: BoundExpression? = null
 ) : BoundStatement

@@ -1080,6 +1080,8 @@ More sophisticated optimization can come later.
 
 # Compiler Architecture
 
+구체적인 클래스 책임과 작업별 수정 위치는 [컴파일러 책임 문서](ARCHITECTURE.md)를 참고한다.
+
 The RKotlin compiler is currently written in Kotlin.
 
 Its structure follows a conventional multi-stage design.

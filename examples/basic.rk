@@ -7,4 +7,11 @@ fun main() {
     for (i in array) {
         println(i)
     }
+
+    val a = array.iterator()
+    val b = array.iterator()
+
+    println(a.next())
+    println(b.next())
+    println(a.next())
 }
