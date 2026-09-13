@@ -1,0 +1,53 @@
+public class Array<T> {
+    private var data: BufferPointer<T>;
+    private var count: Int32;
+
+    public Array(size: Int32) {
+        require(size > 0, "array size must be positive");
+
+        count = size;
+        data = alloc<T>(size);
+    }
+
+    public fun size(): Int32 {
+        return count;
+    }
+
+    public fun length(): Int32 {
+        return size();
+    }
+
+    public fun isEmpty(): Bool {
+        return count == 0;
+    }
+
+    public fun get(index: Int32): T {
+        require(index >= 0, "negative array index");
+        require(index < count, "array index out of bounds");
+
+        return (data + index).read();
+    }
+
+    public fun set(index: Int32, value: T): Void {
+        require(index >= 0, "negative array index");
+        require(index < count, "array index out of bounds");
+
+        (data + index).write(value);
+    }
+
+    public native fun toString(): String = "array.toString";
+
+    public override fun isFreed(): Bool {
+        return data.isFreed();
+    }
+
+    public override fun free(): Void {
+        require(!data.isFreed(), "array already freed");
+        data.free();
+    }
+
+    public override fun address(): BufferPointer<T> {
+        require(!data.isFreed(), "array is freed");
+        return data;
+    }
+}

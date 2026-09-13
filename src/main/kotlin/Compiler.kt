@@ -13,7 +13,12 @@ import me.rkt.semantic.SemanticAnalyzer
 class Compiler {
     private val standardRoot = Path.of("src", "main", "rk").toAbsolutePath().normalize()
 
-    fun compileToC(input: Path, output: Path) {
+    fun compileToC(
+        input: Path,
+        output: Path,
+        debug: Boolean = false,
+        debugFile: Path? = null
+    ) {
         val diagnostics = DiagnosticReporter()
         val loaded = ModuleLoader(standardRoot).load(input, diagnostics)
         val modules = loaded.modules
@@ -40,6 +45,13 @@ class Compiler {
             sources = sources,
             rootSource = sourcePaths.getValue(root.span.source.path.toAbsolutePath().normalize())
         )
+        if (debug || debugFile != null) {
+            val debugText = DebugPrinter.render(semantic, ir)
+            if (debug) print(debugText)
+            debugFile?.let { path ->
+                java.nio.file.Files.writeString(path, debugText)
+            }
+        }
         val directoryName = CSourcePaths.directoryName(output)
         val generated = CBackend(directoryName).generate(ir)
         diagnostics.throwIfErrors()

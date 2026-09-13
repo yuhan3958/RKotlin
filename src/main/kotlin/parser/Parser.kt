@@ -61,6 +61,11 @@ class Parser(
         path += first.text
         var end = first.span
         while (match(TokenType.DOT)) {
+            if (match(TokenType.STAR)) {
+                path += "*"
+                end = previous().span
+                break
+            }
             val part = expect(TokenType.IDENTIFIER)
             path += part.text
             end = part.span
@@ -284,8 +289,8 @@ class Parser(
         val name = expect(TokenType.IDENTIFIER)
         expect(TokenType.IN)
         val rangeStart = parseExpression()
-        expect(TokenType.DOT_DOT)
-        val rangeEnd = parseExpression()
+        val iterable = if (match(TokenType.DOT_DOT)) null else rangeStart
+        val rangeEnd = if (iterable == null) parseExpression() else rangeStart
         expect(TokenType.RPAREN)
         val body = parseBlock()
         return ForStatement(
@@ -293,7 +298,8 @@ class Parser(
             rangeStart,
             rangeEnd,
             body,
-            start.span.merge(body.span)
+            start.span.merge(body.span),
+            iterable
         )
     }
 

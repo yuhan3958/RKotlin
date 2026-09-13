@@ -38,6 +38,11 @@ data class IrNewObjectInstruction(
     val result: IrRegister,
     val type: IrObjectType
 ) : IrInstruction
+data class IrArrayInitializeInstruction(
+    val receiver: IrValue,
+    val length: IrValue,
+    val elementType: IrType
+) : IrInstruction
 
 data class IrSelectNonNullInstruction(
     val result: IrRegister,

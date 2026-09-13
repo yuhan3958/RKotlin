@@ -35,6 +35,26 @@ class ModuleLoader(private val standardRoot: Path) {
             modules += ast
             val dependencies = imports.getOrPut(normalized) { mutableListOf() }
             for (declaration in ast.imports) {
+                if (declaration.path.lastOrNull() == "*") {
+                    val directory = resolveImportDirectory(normalized, declaration.path.dropLast(1))
+                    if (directory == null) {
+                        diagnostics.error(
+                            declaration.span,
+                            "cannot find import directory '${declaration.path.dropLast(1).joinToString(".")}'"
+                        )
+                    } else {
+                        Files.list(directory).use { files ->
+                            files.filter { it.fileName.toString().endsWith(".rk") }
+                                .sorted()
+                                .forEach {
+                                    val imported = it.toAbsolutePath().normalize()
+                                    dependencies.add(imported)
+                                    loadModule(imported)
+                                }
+                        }
+                    }
+                    continue
+                }
                 val imported = resolveImport(normalized, declaration.path)
                 if (imported == null) {
                     diagnostics.error(declaration.span, "cannot find imported module '${declaration.path.joinToString(".")}'")
@@ -67,6 +87,13 @@ class ModuleLoader(private val standardRoot: Path) {
                     javaClass.classLoader.getResource(it) != null
                 } == true
             }
+    }
+
+    private fun resolveImportDirectory(source: Path, path: List<String>): Path? {
+        val relative = path.joinToString(java.io.File.separator)
+        return sequenceOf(source.parent, standardRoot)
+            .map { it.resolve(relative).toAbsolutePath().normalize() }
+            .firstOrNull { Files.isDirectory(it) }
     }
 
     private fun standardResource(path: Path): String? {

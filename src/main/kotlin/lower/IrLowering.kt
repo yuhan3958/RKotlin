@@ -190,9 +190,10 @@ class IrLowering {
             }
 
             is BoundForStatement -> {
-                val local = context.newLocal(statement.symbol, IrI32)
+                val local = context.newLocal(statement.symbol, lowerType(statement.symbol.type))
+                val indexLocal = statement.indexSymbol?.let { context.newLocal(it, IrI32) }
                 context.instructions += IrStoreInstruction(
-                    local,
+                    indexLocal ?: local,
                     lowerExpression(statement.start, context)
                 )
                 val end = lowerExpression(statement.end, context)
@@ -201,20 +202,32 @@ class IrLowering {
                 val endLabel = context.newLabel()
                 context.instructions += IrLabelInstruction(conditionLabel)
                 val current = context.newRegister(IrI32)
-                context.instructions += IrLoadInstruction(current, local)
+                context.instructions += IrLoadInstruction(current, indexLocal ?: local)
                 val condition = context.newRegister(IrI32)
                 context.instructions += IrBinaryInstruction(
                     condition,
-                    IrBinaryOperator.LE_I32,
+                    if (statement.iterable != null) IrBinaryOperator.LT_I32 else IrBinaryOperator.LE_I32,
                     current,
                     end
                 )
                 context.instructions += IrBranchInstruction(condition, bodyLabel, endLabel)
                 context.instructions += IrLabelInstruction(bodyLabel)
+                if (statement.iterable != null) {
+                    val access = statement.elementAccess ?: error("missing for-in element access")
+                    context.instructions += IrStoreInstruction(
+                        local,
+                        coerce(lowerExpression(access, context), local.type, context)
+                    )
+                }
                 lowerStatement(statement.body, context)
                 val finished = context.newRegister(IrI32)
                 val incrementLabel = context.newLabel()
-                context.instructions += IrBinaryInstruction(finished, IrBinaryOperator.EQ_I32, current, end)
+                context.instructions += IrBinaryInstruction(
+                    finished,
+                    if (statement.iterable != null) IrBinaryOperator.GE_I32 else IrBinaryOperator.EQ_I32,
+                    current,
+                    end
+                )
                 context.instructions += IrBranchInstruction(finished, endLabel, incrementLabel)
                 context.instructions += IrLabelInstruction(incrementLabel)
                 val incremented = context.newRegister(IrI32)
@@ -224,7 +237,7 @@ class IrLowering {
                     current,
                     IrIntConstant(1)
                 )
-                context.instructions += IrStoreInstruction(local, incremented)
+                context.instructions += IrStoreInstruction(indexLocal ?: local, incremented)
                 context.instructions += IrJumpInstruction(conditionLabel)
                 context.instructions += IrLabelInstruction(endLabel)
             }
@@ -251,7 +264,17 @@ class IrLowering {
                 result,
                 lowerType(expression.type) as IrObjectType
             )
-            expression.constructor?.let { constructor ->
+            if (expression.type is ClassType &&
+                expression.type.name == "Array" &&
+                expression.type.typeArguments.size == 1 &&
+                expression.arguments.size == 1
+            ) {
+                context.instructions += IrArrayInitializeInstruction(
+                    result,
+                    coerce(lowerExpression(expression.arguments.single(), context), IrI32, context),
+                    lowerType(expression.type.typeArguments.single())
+                )
+            } else expression.constructor?.let { constructor ->
                 context.instructions += IrCallInstruction(
                     null,
                     constructor.generatedName,
@@ -385,6 +408,30 @@ class IrLowering {
             result
         }
 
+        is BoundArrayLiteral -> {
+            val result = context.newRegister(IrObjectType("Array"))
+            context.instructions += IrNewObjectInstruction(result, IrObjectType("Array"))
+            context.instructions += IrArrayInitializeInstruction(
+                result,
+                IrIntConstant(expression.values.size),
+                lowerType(expression.elementType)
+            )
+            expression.values.forEachIndexed { index, item ->
+                val elementType = lowerType(expression.elementType)
+                context.instructions += IrCallInstruction(
+                    null,
+                    "array.set.${arrayElementKey(expression.elementType)}",
+                    listOf(
+                        result,
+                        IrIntConstant(index),
+                        coerce(lowerExpression(item, context), elementType, context)
+                    ),
+                    IrVoid
+                )
+            }
+            result
+        }
+
         is BoundDereferenceExpression -> {
             val result = context.newRegister(lowerType(expression.type))
             context.instructions += IrPointerLoadInstruction(
@@ -491,7 +538,7 @@ class IrLowering {
 
             context.instructions += IrCallInstruction(
                 result,
-                callName(expression.function, expression.direct),
+                arrayCallName(expression, expression.function, expression.direct),
                 args,
                 actualReturnType
             )
@@ -527,9 +574,29 @@ class IrLowering {
             "Int", "Int32", "Bool" -> IrI32
             "String" -> IrString
             "Unit", "Void" -> IrVoid
+            "T" -> IrI32
             else -> IrObjectType(type.name)
         }
     }
+
+    private fun arrayCallName(
+        expression: BoundCallExpression,
+        function: FunctionSymbol,
+        direct: Boolean
+    ): String {
+        val receiverType = expression.receiver?.type as? ClassType
+        if (function.owner?.name == "Array" &&
+            receiverType?.name == "Array" &&
+            receiverType.typeArguments.size == 1 &&
+            function.name in setOf("get", "set")
+        ) {
+            return "array.${function.name}.${arrayElementKey(receiverType.typeArguments.single())}"
+        }
+        return callName(function, direct)
+    }
+
+    private fun arrayElementKey(type: RType): String =
+        if (type == BoolType) "Int32" else type.displayName
 
     private fun coerce(value: IrValue, expected: IrType, context: FunctionContext): IrValue {
         if (expected is IrObjectType && value.type is IrObjectType && expected != value.type) {

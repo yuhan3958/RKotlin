@@ -8,6 +8,8 @@ data class SourceFile(
     val path: Path,
     val content: String
 ) {
+    override fun toString(): String = path.toString()
+
     fun lineColumn(offset: Int): Pair<Int, Int> {
         var line = 1
         var column = 1

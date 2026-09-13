@@ -9,6 +9,9 @@ data class SourceSpan(
         require(start <= end)
     }
 
+    override fun toString(): String =
+        "${source.path}:$start-$end"
+
     fun merge(other: SourceSpan): SourceSpan {
         require(source == other.source)
         return SourceSpan(source, minOf(start, other.start), maxOf(end, other.end))

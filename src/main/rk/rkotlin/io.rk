@@ -23,6 +23,10 @@ public fun println(value: Pointer<*>): Void {
     println(value.toString())
 }
 
+public fun println(value: Array<*>): Void {
+    println(value.toString())
+}
+
 public fun println(value: Bool): Void { println(value.toString()) }
 public fun println(value: Type): Void { println(value.address()) }
 public fun println(): Void { println("") }

@@ -14,6 +14,10 @@ internal object CIntrinsics {
         "int.toString" to "rk_int_string", "string.length" to "rk_string_length",
         "string.codeAt" to "rk_string_code", "string.slice" to "rk_string_slice",
         "string.concat" to "rk_string_concat", "string.compare" to "rk_string_compare",
+        "array.toString" to "rk_array_string",
+        "array.get.Int32" to "rk_array_get_i32", "array.set.Int32" to "rk_array_set_i32",
+        "array.get.Bool" to "rk_array_get_i32", "array.set.Bool" to "rk_array_set_i32",
+        "array.get.String" to "rk_array_get_string", "array.set.String" to "rk_array_set_string",
         "readLine" to "rk_read_line", "printString" to "rk_print_string",
         "panic" to "rk_panic"
     )
@@ -142,11 +146,68 @@ internal object CIntrinsics {
         }
     """.trimIndent()
 
+    private val arrayRuntime = """
+        typedef struct rk_array_layout {
+            struct { int32_t rk_type; } rk_base;
+            rk_pointer *f_data;
+            int32_t f_count;
+        } rk_array_layout;
+
+        static const char *rk_array_string(void *value) {
+            rk_array_layout *array = (rk_array_layout*)value;
+            if (array == NULL || array->f_data == NULL || array->f_count < 0) abort();
+            size_t count = (size_t)array->f_count;
+            if (count > (SIZE_MAX - 3) / 13) abort();
+            size_t capacity = 3 + count * 13;
+            char *result = rk_allocate(capacity);
+            size_t length = 0;
+            result[length++] = '[';
+            for (size_t index = 0; index < count; ++index) {
+                if (index != 0) {
+                    result[length++] = ',';
+                    result[length++] = ' ';
+                }
+                const char *type_name = array->f_data->type_name;
+                int written;
+                if (type_name != NULL && strcmp(type_name, "String") == 0) {
+                    written = snprintf(result + length, capacity - length, "%s",
+                        *(const char**)rk_buffer_element(array->f_data, (int32_t)index));
+                } else {
+                    written = snprintf(result + length, capacity - length, "%" PRId32,
+                        *(int32_t*)rk_buffer_element(array->f_data, (int32_t)index));
+                }
+                if (written < 0 || (size_t)written >= capacity - length) abort();
+                length += (size_t)written;
+            }
+            result[length++] = ']';
+            result[length] = '\0';
+            return result;
+        }
+
+        static int32_t rk_array_get_i32(void *value, int32_t index) {
+            rk_array_layout *array = (rk_array_layout*)value;
+            return *(int32_t*)rk_buffer_element(array->f_data, index);
+        }
+        static void rk_array_set_i32(void *value, int32_t index, int32_t element) {
+            rk_array_layout *array = (rk_array_layout*)value;
+            *(int32_t*)rk_buffer_element(array->f_data, index) = element;
+        }
+        static const char *rk_array_get_string(void *value, int32_t index) {
+            rk_array_layout *array = (rk_array_layout*)value;
+            return *(const char**)rk_buffer_element(array->f_data, index);
+        }
+        static void rk_array_set_string(void *value, int32_t index, const char *element) {
+            rk_array_layout *array = (rk_array_layout*)value;
+            *(const char**)rk_buffer_element(array->f_data, index) = element;
+        }
+    """.trimIndent()
+
     val modules = listOf(
         CIntrinsicModule("runtime/panic.c", listOf("runtime/system.h"), panicRuntime),
         CIntrinsicModule("runtime/integer.c", listOf("runtime/memory.c", "runtime/panic.c"), integerRuntime),
         CIntrinsicModule("runtime/string.c", listOf("runtime/integer.c"), stringRuntime),
-        CIntrinsicModule("runtime/io.c", listOf("runtime/string.c"), ioRuntime)
+        CIntrinsicModule("runtime/array.c", listOf("runtime/string.c"), arrayRuntime),
+        CIntrinsicModule("runtime/io.c", listOf("runtime/array.c"), ioRuntime)
     )
 }
 

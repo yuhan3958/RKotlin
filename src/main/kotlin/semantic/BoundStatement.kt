@@ -55,5 +55,8 @@ data class BoundForStatement(
     val start: BoundExpression,
     val end: BoundExpression,
     val body: BoundBlockStatement,
-    override val span: SourceSpan
+    override val span: SourceSpan,
+    val iterable: BoundExpression? = null,
+    val indexSymbol: VariableSymbol? = null,
+    val elementAccess: BoundExpression? = null
 ) : BoundStatement

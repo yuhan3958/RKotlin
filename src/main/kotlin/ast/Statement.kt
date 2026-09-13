@@ -57,5 +57,6 @@ data class ForStatement(
     val start: Expression,
     val end: Expression,
     val body: BlockStatement,
-    override val span: SourceSpan
+    override val span: SourceSpan,
+    val iterable: Expression? = null
 ) : Statement

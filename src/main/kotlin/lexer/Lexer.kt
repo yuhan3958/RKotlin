@@ -184,7 +184,10 @@ class Lexer(
             when {
                 peek().isWhitespace() -> position++
                 peek() == '/' && peek(1) == '/' -> {
-                    while (!isAtEnd() && peek() != '\n') position++
+                    position += 2
+                    while (!isAtEnd() && peek() != '\n' && peek() != '\r') {
+                        position++
+                    }
                 }
                 else -> return
             }

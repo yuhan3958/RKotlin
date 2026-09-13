@@ -126,6 +126,13 @@ data class BoundBufferAllocationExpression(
     override val span: SourceSpan
 ) : BoundExpression
 
+data class BoundArrayLiteral(
+    val values: List<BoundExpression>,
+    val elementType: RType,
+    override val type: ClassType,
+    override val span: SourceSpan
+) : BoundExpression
+
 data class BoundFreeExpression(
     val pointer: BoundExpression,
     override val span: SourceSpan,

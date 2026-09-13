@@ -570,6 +570,15 @@ class CBackend(private val moduleDirectory: String = "rkotlin.modules") : Backen
                 w.line("${typeTag(value(instruction.result), type)} = ${typeIds.getValue(type.name)};")
             }
 
+            is IrArrayInitializeInstruction -> {
+                w.line("${value(instruction.receiver)}->f_count = ${value(instruction.length)};")
+                w.line(
+                    "${value(instruction.receiver)}->f_data = rk_buffer_create(" +
+                        "${value(instruction.length)}, sizeof(${cType(instruction.elementType)}), " +
+                        "\"${pointerTypeName(instruction.elementType)}\");"
+                )
+            }
+
             is IrFieldLoadInstruction -> {
                 w.line(
                     "${value(instruction.result)} = " +

@@ -43,7 +43,12 @@ data class ManagedPointerType(
 
 data class ClassType(
     val name: String,
-    val objectLike: Boolean = false
+    val objectLike: Boolean = false,
+    val typeArguments: List<RType> = emptyList()
 ) : RType {
-    override val displayName: String = name
+    override val displayName: String = if (typeArguments.isEmpty()) {
+        name
+    } else {
+        "$name<${typeArguments.joinToString(",") { it.displayName }}>"
+    }
 }
